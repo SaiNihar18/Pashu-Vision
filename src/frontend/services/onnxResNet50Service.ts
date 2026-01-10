@@ -5,8 +5,8 @@ import * as ort from 'onnxruntime-web';
 import { ModelPrediction } from './onnxModelService';
 
 // Configure ONNX Runtime for browser
-// Use CDN as fallback with proper configuration
-ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/';
+// Serve WASM locally to avoid hashed paths in production builds
+ort.env.wasm.wasmPaths = '/onnx-wasm';
 ort.env.wasm.numThreads = 1;
 ort.env.logLevel = 'warning';
 ort.env.wasm.simdSupported = typeof WebAssembly === 'object' && WebAssembly.validate(new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00, 0x01, 0x04, 0x01, 0x70, 0x00, 0x00]));
