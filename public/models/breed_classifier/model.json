@@ -1,0 +1,17 @@
+{
+  "format": "layers-model",
+  "generatedBy": "BreedAI-Converter",
+  "convertedBy": "Fallback System",
+  "modelTopology": {
+    "class_name": "Sequential",
+    "config": {
+      "name": "breed_classifier",
+      "layers": []
+    }
+  },
+  "weightsManifest": [],
+  "userDefinedMetadata": {
+    "note": "This is a placeholder. Real model conversion needed.",
+    "breeds": 41
+  }
+}

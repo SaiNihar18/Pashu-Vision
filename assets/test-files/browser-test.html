@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Browser Compatibility Test</title>
+    <style>
+        body { font-family: monospace; margin: 20px; background: #f5f5f5; }
+        .test { background: white; margin: 10px 0; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .pass { border-left: 5px solid #4CAF50; }
+        .fail { border-left: 5px solid #f44336; }
+        .warn { border-left: 5px solid #FF9800; }
+        .info { border-left: 5px solid #2196F3; }
+        h1 { color: #333; }
+        pre { background: #f8f8f8; padding: 10px; border-radius: 4px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Browser Compatibility Test</h1>
+    <div id="results"></div>
+
+    <script>
+        function addResult(title, status, details) {
+            const div = document.createElement('div');
+            div.className = `test ${status}`;
+            div.innerHTML = `
+                <h3>${status === 'pass' ? '✅' : status === 'fail' ? '❌' : status === 'warn' ? '⚠️' : 'ℹ️'} ${title}</h3>
+                <pre>${details}</pre>
+            `;
+            document.getElementById('results').appendChild(div);
+        }
+
+        function runTests() {
+            // Test 1: Browser Info
+            addResult('Browser Information', 'info', 
+                `User Agent: ${navigator.userAgent}
+Browser: ${navigator.appName} ${navigator.appVersion}
+Platform: ${navigator.platform}
+Language: ${navigator.language}
+Cookies Enabled: ${navigator.cookieEnabled}
+Online: ${navigator.onLine}`);
+
+            // Test 2: ES6+ Features
+            try {
+                const arrowFuncTest = () => 'arrow functions work';
+                const destructuring = {a: 1, b: 2};
+                const {a, b} = destructuring;
+                const templateString = `template strings work: ${a + b}`;
+                addResult('ES6+ Features', 'pass', 'Arrow functions, destructuring, template strings supported');
+            } catch (e) {
+                addResult('ES6+ Features', 'fail', `ES6+ features failed: ${e.message}`);
+            }
+
+            // Test 3: Module Support
+            if ('noModule' in HTMLScriptElement.prototype) {
+                addResult('ES Modules', 'pass', 'ES modules supported');
+            } else {
+                addResult('ES Modules', 'fail', 'ES modules not supported');
+            }
+
+            // Test 4: Import Maps
+            if (HTMLScriptElement.supports && HTMLScriptElement.supports('importmap')) {
+                addResult('Import Maps', 'pass', 'Import maps supported');
+            } else {
+                addResult('Import Maps', 'warn', 'Import maps not supported - may cause issues with React imports');
+            }
+
+            // Test 5: Fetch API
+            if (typeof fetch !== 'undefined') {
+                addResult('Fetch API', 'pass', 'Fetch API available');
+            } else {
+                addResult('Fetch API', 'fail', 'Fetch API not available');
+            }
+
+            // Test 6: Web Assembly
+            if (typeof WebAssembly !== 'undefined') {
+                addResult('WebAssembly', 'pass', 'WebAssembly supported (needed for ONNX)');
+            } else {
+                addResult('WebAssembly', 'fail', 'WebAssembly not supported - ONNX will fail');
+            }
+
+            // Test 7: Try to access main app
+            setTimeout(() => {
+                try {
+                    fetch('/')
+                        .then(response => {
+                            if (response.ok) {
+                                addResult('Main App Access', 'pass', 'Can access main application');
+                            } else {
+                                addResult('Main App Access', 'warn', `App response: ${response.status}`);
+                            }
+                        })
+                        .catch(e => {
+                            addResult('Main App Access', 'fail', `Cannot access main app: ${e.message}`);
+                        });
+                } catch (e) {
+                    addResult('Main App Access', 'fail', `Fetch failed: ${e.message}`);
+                }
+            }, 1000);
+
+            // Test 8: React CDN Access
+            setTimeout(() => {
+                try {
+                    fetch('https://aistudiocdn.com/react@19.1.1/index.js', { method: 'HEAD' })
+                        .then(response => {
+                            if (response.ok) {
+                                addResult('React CDN', 'pass', 'React CDN accessible');
+                            } else {
+                                addResult('React CDN', 'warn', `React CDN response: ${response.status}`);
+                            }
+                        })
+                        .catch(e => {
+                            addResult('React CDN', 'fail', `React CDN failed: ${e.message}`);
+                        });
+                } catch (e) {
+                    addResult('React CDN', 'fail', `React CDN test failed: ${e.message}`);
+                }
+            }, 2000);
+        }
+
+        // Run tests when page loads
+        document.addEventListener('DOMContentLoaded', runTests);
+    </script>
+</body>
+</html>

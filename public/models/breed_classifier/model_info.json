@@ -1,0 +1,78 @@
+{
+  "model_type": "resnet50_finetuned",
+  "architecture": "ResNet-50 with custom FC layer",
+  "input_shape": [
+    224,
+    224,
+    3
+  ],
+  "num_classes": 41,
+  "class_names": [
+    "Alambadi",
+    "Amritmahal",
+    "Ayrshire",
+    "Banni",
+    "Bargur",
+    "Bhadawari",
+    "Brown_Swiss",
+    "Dangi",
+    "Deoni",
+    "Gir",
+    "Guernsey",
+    "Hallikar",
+    "Hariana",
+    "Holstein_Friesian",
+    "Jaffrabadi",
+    "Jersey",
+    "Kangayam",
+    "Kankrej",
+    "Kasargod",
+    "Kenkatha",
+    "Kherigarh",
+    "Khillari",
+    "Krishna_Valley",
+    "Malnad_gidda",
+    "Mehsana",
+    "Murrah",
+    "Nagori",
+    "Nagpuri",
+    "Nili_Ravi",
+    "Nimari",
+    "Ongole",
+    "Pulikulam",
+    "Rathi",
+    "Red_Dane",
+    "Red_Sindhi",
+    "Sahiwal",
+    "Surti",
+    "Tharparkar",
+    "Toda",
+    "Umblachery",
+    "Vechur"
+  ],
+  "preprocessing": {
+    "resize": [
+      224,
+      224
+    ],
+    "normalize": true,
+    "mean": [
+      0.485,
+      0.456,
+      0.406
+    ],
+    "std": [
+      0.229,
+      0.224,
+      0.225
+    ]
+  },
+  "training_info": {
+    "base_model": "ResNet-50",
+    "frozen_layers": "conv1, bn1, relu, maxpool, layer1, layer2, layer3",
+    "trainable_layers": "layer4, fc",
+    "final_layer": "Dropout(0.5) + Linear(2048, 41)",
+    "optimizer": "Adam",
+    "learning_rate": 0.0001
+  }
+}

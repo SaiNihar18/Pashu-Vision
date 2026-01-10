@@ -1,0 +1,8 @@
+{
+  "name": "BreedAI",
+  "description": "An AI-powered platform for cattle and buffalo breed recognition, featuring quick analysis, multi-angle capture, batch processing, and analytics.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}

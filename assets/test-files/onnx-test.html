@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ONNX Loading Test</title>
+    <style>
+        body { font-family: monospace; margin: 20px; }
+        .log { background: #f0f0f0; padding: 10px; margin: 5px 0; border-radius: 4px; }
+        .error { background: #ffebee; border-left: 4px solid #f44336; }
+        .success { background: #e8f5e8; border-left: 4px solid #4caf50; }
+        .info { background: #e3f2fd; border-left: 4px solid #2196f3; }
+    </style>
+</head>
+<body>
+    <h1>ONNX Runtime Loading Test</h1>
+    <div id="logs"></div>
+    <button onclick="testONNXLoading()">Test ONNX Loading</button>
+
+    <script type="module">
+        function log(message, type = 'info') {
+            const logsDiv = document.getElementById('logs');
+            const logDiv = document.createElement('div');
+            logDiv.className = `log ${type}`;
+            logDiv.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logsDiv.appendChild(logDiv);
+            console.log(message);
+        }
+
+        window.testONNXLoading = async function() {
+            log('Starting ONNX Runtime test...', 'info');
+            
+            try {
+                // Test 1: Check if we can import onnxruntime-web
+                log('Test 1: Importing onnxruntime-web...', 'info');
+                const ort = await import('onnxruntime-web');
+                log('✅ onnxruntime-web imported successfully', 'success');
+                
+                // Test 2: Configure ONNX
+                log('Test 2: Configuring ONNX Runtime...', 'info');
+                ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/';
+                ort.env.wasm.numThreads = 1;
+                ort.env.logLevel = 'warning';
+                log('✅ ONNX Runtime configured', 'success');
+                
+                // Test 3: Check if model file exists
+                log('Test 3: Checking model file...', 'info');
+                const modelPath = '/models/breed_classifier/breed_classifier.onnx';
+                try {
+                    const response = await fetch(modelPath, { method: 'HEAD' });
+                    if (response.ok) {
+                        const size = response.headers.get('content-length');
+                        log(`✅ Model file found, size: ${size} bytes`, 'success');
+                    } else {
+                        log(`❌ Model file not found. Status: ${response.status}`, 'error');
+                        return;
+                    }
+                } catch (fetchError) {
+                    log(`❌ Failed to check model file: ${fetchError.message}`, 'error');
+                    return;
+                }
+                
+                // Test 4: Try to load model data
+                log('Test 4: Fetching model data...', 'info');
+                try {
+                    const modelResponse = await fetch(modelPath);
+                    if (!modelResponse.ok) {
+                        log(`❌ Failed to fetch model: ${modelResponse.status} ${modelResponse.statusText}`, 'error');
+                        return;
+                    }
+                    const modelBuffer = await modelResponse.arrayBuffer();
+                    const modelData = new Uint8Array(modelBuffer);
+                    log(`✅ Model data loaded, size: ${modelData.byteLength} bytes`, 'success');
+                    
+                    // Test 5: Try to create inference session
+                    log('Test 5: Creating ONNX inference session...', 'info');
+                    const session = await ort.InferenceSession.create(modelData, {
+                        executionProviders: ['wasm'],
+                        graphOptimizationLevel: 'all'
+                    });
+                    log('✅ ONNX inference session created successfully!', 'success');
+                    log(`Input names: ${session.inputNames.join(', ')}`, 'info');
+                    log(`Output names: ${session.outputNames.join(', ')}`, 'info');
+                    
+                } catch (modelError) {
+                    log(`❌ Model loading failed: ${modelError.message}`, 'error');
+                    log(`Error stack: ${modelError.stack}`, 'error');
+                }
+                
+            } catch (error) {
+                log(`❌ Error: ${error.message}`, 'error');
+                log(`Error details: ${error.stack}`, 'error');
+            }
+        };
+        
+        // Auto-run test on page load
+        window.addEventListener('load', () => {
+            setTimeout(testONNXLoading, 1000);
+        });
+    </script>
+</body>
+</html>
