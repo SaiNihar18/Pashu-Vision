@@ -18,10 +18,9 @@ dist-ssr
 .env.*.local
 
 # Model files (too large for GitHub)
-*.pth
-*.pkl
-*.onnx
-best_bovine_model.pth
+# *.pth
+# *.pkl
+# best_bovine_model.pth
 
 # Editor directories and files
 .vscode/*
