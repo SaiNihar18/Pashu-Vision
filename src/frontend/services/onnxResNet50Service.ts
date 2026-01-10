@@ -5,9 +5,11 @@ import * as ort from 'onnxruntime-web';
 import { ModelPrediction } from './onnxModelService';
 
 // Configure ONNX Runtime for browser
+// Use CDN as fallback with proper configuration
 ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/';
 ort.env.wasm.numThreads = 1;
 ort.env.logLevel = 'warning';
+ort.env.wasm.simdSupported = typeof WebAssembly === 'object' && WebAssembly.validate(new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00, 0x01, 0x04, 0x01, 0x70, 0x00, 0x00]));
 
 // Your actual 41 breed classes
 const BREED_CLASSES = [
@@ -35,6 +37,7 @@ class ONNXResNet50Service {
     this.isLoading = true;
     try {
       console.log('🚀 Loading your ONNX ResNet-50 breed classifier...');
+      console.log('📂 Model path:', modelPath);
       
       // Load model info first
       try {
@@ -55,7 +58,8 @@ class ONNXResNet50Service {
         if (!modelResponse.ok) {
           throw new Error(`Model file not found at ${modelPath}. Status: ${modelResponse.status}`);
         }
-        console.log('✅ Model file found, size:', modelResponse.headers.get('content-length'), 'bytes');
+        const contentLength = modelResponse.headers.get('content-length');
+        console.log('✅ Model file found, size:', contentLength ? `${(parseInt(contentLength) / (1024*1024)).toFixed(2)}MB` : 'unknown');
       } catch (fetchError) {
         console.error('❌ Model file check failed:', fetchError);
         throw new Error(`Could not access ONNX model file at ${modelPath}. Please ensure breed_classifier.onnx exists in public/models/breed_classifier/`);
@@ -72,7 +76,7 @@ class ONNXResNet50Service {
       }
       const modelBuffer = await modelResponse.arrayBuffer();
       const modelData = new Uint8Array(modelBuffer);
-      console.log('✅ Model file fetched successfully, size:', modelData.byteLength, 'bytes');
+      console.log('✅ Model file fetched successfully, size:', `${(modelData.byteLength / (1024*1024)).toFixed(2)}MB`);
       
       // Try multiple execution providers in order of preference
       const providers = [
@@ -88,6 +92,8 @@ class ONNXResNet50Service {
           console.log(`🔄 Trying ${provider.name} execution provider...`);
           this.session = await ort.InferenceSession.create(modelData, provider.config);
           console.log(`✅ Successfully loaded with ${provider.name} provider!`);
+          console.log(`📊 Input names: ${this.session.inputNames.join(', ')}`);
+          console.log(`📊 Output names: ${this.session.outputNames.join(', ')}`);
           break;
         } catch (providerError) {
           console.warn(`⚠️ ${provider.name} provider failed:`, providerError);
