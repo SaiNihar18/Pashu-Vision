@@ -5,8 +5,6 @@ export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     return {
       define: {
-        'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
         'process.env.CUSTOM_MODEL_PATH': JSON.stringify(env.CUSTOM_MODEL_PATH || '/models/breed_classifier'),
         'process.env.USE_CUSTOM_MODEL': JSON.stringify(env.USE_CUSTOM_MODEL === 'true'),
         'process.env.MODEL_CONFIDENCE_THRESHOLD': JSON.stringify(parseInt(env.MODEL_CONFIDENCE_THRESHOLD || '60')),

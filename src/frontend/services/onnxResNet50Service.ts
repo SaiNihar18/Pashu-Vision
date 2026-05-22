@@ -9,7 +9,7 @@ import { ModelPrediction } from './onnxModelService';
 ort.env.wasm.wasmPaths = '/onnx-wasm/';
 ort.env.wasm.numThreads = 1;
 ort.env.logLevel = 'warning';
-ort.env.wasm.simdSupported = typeof WebAssembly === 'object' && WebAssembly.validate(new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00, 0x01, 0x04, 0x01, 0x70, 0x00, 0x00]));
+(ort.env.wasm as any).simdSupported = typeof WebAssembly === 'object' && WebAssembly.validate(new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00, 0x01, 0x04, 0x01, 0x70, 0x00, 0x00]));
 
 // Your actual 41 breed classes
 const BREED_CLASSES = [

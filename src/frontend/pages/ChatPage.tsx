@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { GoogleGenAI, Chat } from "@google/genai";
 import type { View } from '../App';
 import PageHeader from '../components/PageHeader';
 import { ArrowRightIcon, SpeakerIcon, MicrophoneIcon } from '../components/icons';
 import { useTranslation } from '../hooks/useTranslation';
-import { textToSpeech } from '../services/geminiService';
+import { sendChatMessage, textToSpeech } from '../services/geminiService';
 import { playPcmAudio } from '../services/audioService';
 import { useLanguage } from '../contexts/LanguageContext';
 
@@ -27,10 +26,9 @@ const VOICE_STORAGE_KEY = 'breed_ai_voice_preference';
 const ChatPage: React.FC<ChatPageProps> = ({ navigateTo }) => {
     const t = useTranslation();
     const { language } = useLanguage();
-    const [chat, setChat] = useState<Chat | null>(null);
     const [messages, setMessages] = useState<Message[]>([]);
     const [userInput, setUserInput] = useState('');
-    const [isLoading, setIsLoading] = useState(true);
+    const [isLoading, setIsLoading] = useState(false);
     const [playingMessageIndex, setPlayingMessageIndex] = useState<number | null>(null);
     const [selectedVoice, setSelectedVoice] = useState<string>(() => {
         return localStorage.getItem(VOICE_STORAGE_KEY) || 'vindemiatrix'; // Default to vindemiatrix
@@ -40,30 +38,9 @@ const ChatPage: React.FC<ChatPageProps> = ({ navigateTo }) => {
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        const initializeChat = async () => {
-            try {
-                const ai = new GoogleGenAI({ apiKey: "AIzaSyC8xmDEFQtOaaa7WNmSsUJWLBj5_M-GU6w" });
-                const chatSession = ai.chats.create({
-                    model: 'gemini-2.5-flash',
-                    config: {
-                        systemInstruction: "You are an expert AI assistant for Indian livestock, specializing in cattle and buffalo breeds. Your name is Pashu Vision Assistant. You provide helpful and concise information to farmers and field workers. Answer questions about breed identification, characteristics, health, and best practices. Communicate in a friendly and supportive tone.",
-                    },
-                });
-                setChat(chatSession);
-
-                setMessages([
-                    { role: 'model', text: "Hello! I'm your Pashu Vision assistant. How can I help you today with your cattle or buffalo questions?" }
-                ]);
-            } catch (error) {
-                console.error("Failed to initialize AI Chat:", error);
-                setMessages([
-                    { role: 'model', text: "Sorry, I'm having trouble connecting right now. Please try again later." }
-                ]);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        initializeChat();
+        setMessages([
+            { role: 'model', text: "Hello! I'm your Pashu Vision assistant. How can I help you today with your cattle or buffalo questions?" }
+        ]);
     }, []);
 
     useEffect(() => {
@@ -76,16 +53,17 @@ const ChatPage: React.FC<ChatPageProps> = ({ navigateTo }) => {
 
     const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!userInput.trim() || isLoading || !chat) return;
+        if (!userInput.trim() || isLoading) return;
 
         const userMessage: Message = { role: 'user', text: userInput };
-        setMessages(prev => [...prev, userMessage]);
+        const nextMessages = [...messages, userMessage];
+        setMessages(nextMessages);
         setUserInput('');
         setIsLoading(true);
 
         try {
-            const result = await chat.sendMessage({ message: userMessage.text });
-            const modelMessage: Message = { role: 'model', text: result.text };
+            const replyText = await sendChatMessage(nextMessages);
+            const modelMessage: Message = { role: 'model', text: replyText };
             setMessages(prev => [...prev, modelMessage]);
         } catch (error) {
             console.error("AI chat error:", error);

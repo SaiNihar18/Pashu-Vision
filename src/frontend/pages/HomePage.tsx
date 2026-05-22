@@ -141,9 +141,9 @@ const HomePage: React.FC<HomePageProps> = ({ navigateTo }) => {
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 mt-16">
         {/* Main Actions */}
         <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
-            <ActionButton onClick={() => navigateTo('multiAngle')} titleKey="Multi-Angle Analysis" descKey="Advanced breed identification using multiple camera angles for highest accuracy" icon={<span className="text-xl">📸</span>} />
-            <ActionButton onClick={() => navigateTo('health')} titleKey="Health Assessment" descKey="AI-powered livestock health screening and disease detection" icon={<span className="text-xl">🩺</span>} />
-            <ActionButton onClick={() => navigateTo('chat')} titleKey="Ask AI Assistant" descKey="Get expert advice and answers about livestock" icon={<MessageCircleIcon className="w-6 h-6" />} />
+            <ActionButton onClick={() => navigateTo('multiAngle')} titleKey="action_multi_angle" descKey="action_multi_angle_desc" icon={<span className="text-xl">📸</span>} />
+            <ActionButton onClick={() => navigateTo('health')} titleKey="action_health_assessment" descKey="action_health_assessment_desc" icon={<span className="text-xl">🩺</span>} />
+            <ActionButton onClick={() => navigateTo('chat')} titleKey="action_ask_ai" descKey="action_ask_ai_desc" icon={<MessageCircleIcon className="w-6 h-6" />} />
         </div>
         
         {/* Secondary Actions */}

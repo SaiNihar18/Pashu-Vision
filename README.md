@@ -99,18 +99,31 @@ cd pashu-vision
 
 # Install dependencies
 npm install
+```
 
-# Create environment file
-cp .env.example .env.local
+### Environment
 
-# Add your Gemini API Key to .env.local
-# GEMINI_API_KEY=your_api_key_here
+Create a `.env` file at the project root (do not commit it):
 
-# Start development server
+```bash
+GEMINI_API_KEY=your_api_key_here
+```
+
+### Run Locally
+
+Frontend only (UI + ONNX in browser):
+
+```bash
 npm run dev
 ```
 
-Visit `http://localhost:5174/` in your browser. You should see the Pashu Vision home page! 🎉
+Full stack (UI + serverless Gemini proxy):
+
+```bash
+npx vercel dev
+```
+
+Visit the local URL shown in the terminal. You should see the Pashu Vision home page! 🎉
 
 ---
 
@@ -118,6 +131,8 @@ Visit `http://localhost:5174/` in your browser. You should see the Pashu Vision 
 
 ```
 pashu-vision/
+├── api/                   # Serverless Gemini proxy
+│   └── gemini.js
 ├── src/frontend/
 │   ├── pages/              # 11 main pages
 │   │   ├── HomePage.tsx
@@ -133,8 +148,9 @@ pashu-vision/
 │   ├── contexts/           # React context providers
 │   └── hooks/              # Custom React hooks
 ├── public/
-│   └── models/             # Your trained ONNX model
-│       └── breed_classifier.onnx
+│   ├── models/             # Your trained ONNX model
+│   │   └── breed_classifier/
+│   └── onnx-wasm/           # ONNX runtime WASM/MJS assets
 ├── guides/                 # Documentation
 ├── docs/                   # Detailed guides
 ├── tools/                  # Development scripts
@@ -149,12 +165,15 @@ pashu-vision/
 - **React 19** - UI library
 - **TypeScript** - Type-safe development
 - **Vite 6** - Lightning-fast build tool
-- **Tailwind CSS** - Responsive styling
+- **Tailwind CSS** - Responsive styling (PostCSS build)
 
 ### AI & Machine Learning
 - **ONNX Runtime Web** - Run your trained model in browser
-- **Google Gemini AI** - Advanced language & vision AI
+- **Google Gemini AI** - Advanced language & vision AI (via serverless proxy)
 - **TensorFlow.js** - Additional ML capabilities
+
+### Backend
+- **Vercel Serverless Functions** - Secure Gemini API proxy
 
 ### Features
 - **Web Speech API** - Voice input/output
@@ -202,6 +221,31 @@ Home → (Top Right) → Enable Voice Commands
 
 ---
 
+## 🔄 Project Workflow
+
+1) **App boot**
+  - [src/frontend/index.tsx](src/frontend/index.tsx) mounts the React app
+  - Language and voice contexts initialize
+
+2) **Quick Analysis (primary path)**
+  - Image is preprocessed in the browser
+  - ONNX ResNet-50 runs locally for breed prediction
+  - Top prediction is returned with confidence
+
+3) **Gemini enrichment**
+  - The UI sends the predicted breed name to `/api/gemini`
+  - Serverless function calls Gemini and returns structured details
+
+4) **Health/Multi-Angle/Chat**
+  - These features send text or images to `/api/gemini`
+  - Serverless proxy uses the API key securely on the server
+
+5) **Results + History**
+  - Results are displayed in the UI
+  - Analysis history is stored in `localStorage`
+
+---
+
 ## 🔧 Development
 
 ### Available Scripts
@@ -215,9 +259,6 @@ npm run build
 
 # Preview production build locally
 npm run preview
-
-# Format code (if eslint configured)
-npm run lint
 ```
 
 ### Making Changes
@@ -246,7 +287,7 @@ git push origin main
 
 # Then on Vercel.com:
 # 1. Import repository
-# 2. Add GEMINI_API_KEY environment variable
+# 2. Add GEMINI_API_KEY environment variable (serverless)
 # 3. Deploy!
 ```
 
@@ -268,7 +309,7 @@ git push origin main
 - **Format**: ONNX (Open Neural Network Exchange)
 - **Input**: 224×224×3 images
 - **Output**: 41 breed classes
-- **Location**: `public/models/breed_classifier.onnx`
+- **Location**: `public/models/breed_classifier/` (ONNX + metadata)
 - **Runs**: Entirely in browser (privacy-first)
 
 ### Supported Breeds (41 Total)
@@ -289,7 +330,7 @@ Holstein Friesian, Jersey, Brown Swiss, Ayrshire, Guernsey, Red Dane
 ✅ **Your data is safe**
 - Images are NOT sent to external servers for classification
 - Your trained model runs locally in your browser
-- Only text queries go to Google Gemini
+- Health/Multi-Angle/Chat images go to Gemini via the serverless proxy
 - No tracking or analytics by default
 - All data stored locally on your device
 
@@ -297,7 +338,7 @@ Holstein Friesian, Jersey, Brown Swiss, Ayrshire, Guernsey, Red Dane
 - `.env` file is not committed to git
 - Keys stored only on deployment platform
 - Never exposed in client-side code
-- Secure environment variable handling
+- Serverless proxy keeps keys on the server
 
 ---
 
@@ -338,8 +379,9 @@ Please feel free to:
 - [ ] Node.js 18+ installed
 - [ ] Repository cloned locally
 - [ ] `npm install` completed
-- [ ] `.env.local` created with Gemini API key
+- [ ] `.env` created with Gemini API key
 - [ ] `npm run dev` runs without errors
+- [ ] `npx vercel dev` works for Gemini features
 - [ ] App visible at `http://localhost:5174/`
 - [ ] Can upload and analyze images
 - [ ] Chat functionality works
@@ -358,14 +400,18 @@ npm run dev
 ```
 
 ### Gemini API returns error
-- Verify API key is correct in `.env.local`
+- Verify API key is correct in `.env`
 - Check API key has proper permissions
 - Ensure API is enabled in Google Cloud Console
+- If running locally, use `npx vercel dev` so `/api/gemini` is available
 
 ### ONNX model not found
 - Check `public/models/breed_classifier.onnx` exists
 - Verify file permissions
 - Reload page in browser
+
+### ONNX runtime errors
+- Ensure `public/onnx-wasm/` is deployed with all `.wasm` and `.mjs` files
 
 ### Changes not appearing on live site
 - Hard refresh browser: `Ctrl+Shift+R`
