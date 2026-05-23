@@ -17,8 +17,8 @@ const History: React.FC<HistoryProps> = ({
   onDelete, 
   currentLang = 'en' 
 }) => {
-  const formatDate = (timestamp: number) => {
-    return new Date(timestamp).toLocaleDateString(currentLang === 'hi' ? 'hi-IN' : 'en-US', {
+  const formatDate = (dateValue: string) => {
+    return new Date(dateValue).toLocaleDateString(currentLang === 'hi' ? 'hi-IN' : 'en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -49,7 +49,7 @@ const History: React.FC<HistoryProps> = ({
               {/* Image Thumbnail */}
               <div className="flex-shrink-0">
                 <img 
-                  src={entry.imageUrl} 
+                  src={entry.imageDataUrl} 
                   alt="Analysis" 
                   className="w-16 h-16 object-cover rounded-lg border border-base-400/20"
                 />
@@ -78,7 +78,7 @@ const History: React.FC<HistoryProps> = ({
                 
                 <div className="flex items-center text-xs text-contrast-300">
                   <CalendarIcon className="w-4 h-4 mr-1" />
-                  {formatDate(entry.timestamp)}
+                  {formatDate(entry.date)}
                 </div>
               </div>
             </div>

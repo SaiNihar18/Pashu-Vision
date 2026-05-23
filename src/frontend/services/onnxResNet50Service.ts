@@ -1,15 +1,9 @@
-// ONNX ResNet-50 Model Service
+﻿// ONNX ResNet-50 Model Service
 // Uses your actual converted ONNX model with modern onnxruntime-web
 
-import * as ort from 'onnxruntime-web';
+import { ort, ensureOnnxRuntimeReady } from '../config/onnxRuntime';
 import { ModelPrediction } from './onnxModelService';
-
-// Configure ONNX Runtime for browser
-// Serve WASM locally to avoid hashed paths in production builds
-ort.env.wasm.wasmPaths = '/onnx-wasm/';
-ort.env.wasm.numThreads = 1;
-ort.env.logLevel = 'warning';
-(ort.env.wasm as any).simdSupported = typeof WebAssembly === 'object' && WebAssembly.validate(new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00, 0x01, 0x04, 0x01, 0x70, 0x00, 0x00]));
+import type { ProgressReporter } from './modelLoadProgress';
 
 // Your actual 41 breed classes
 const BREED_CLASSES = [
@@ -29,54 +23,67 @@ class ONNXResNet50Service {
   /**
    * Load your converted ONNX ResNet-50 model
    */
-  async loadModel(modelPath: string = '/models/breed_classifier/breed_classifier.onnx'): Promise<void> {
-    if (this.session || this.isLoading) {
+  async loadModel(
+    modelPath: string = '/models/breed_classifier/breed_classifier.onnx',
+    onProgress?: ProgressReporter
+  ): Promise<void> {
+    if (this.session) {
+      onProgress?.({ stage: 'complete', percent: 100, message: 'Model ready' });
+      return;
+    }
+    if (this.isLoading) {
       return;
     }
 
     this.isLoading = true;
     try {
-      console.log('🚀 Loading your ONNX ResNet-50 breed classifier...');
-      console.log('📂 Model path:', modelPath);
+      await ensureOnnxRuntimeReady(onProgress);
+
+      console.log('≡ƒÜÇ Loading your ONNX ResNet-50 breed classifier...');
+      console.log('≡ƒôé Model path:', modelPath);
       
       // Load model info first
       try {
         const infoResponse = await fetch('/models/breed_classifier/model_info.json');
         if (infoResponse.ok) {
           this.modelInfo = await infoResponse.json();
-          console.log('📋 Model info loaded:', this.modelInfo.model_type);
+          console.log('≡ƒôï Model info loaded:', this.modelInfo.model_type);
         } else {
-          console.warn('⚠️ Could not load model info, using defaults');
+          console.warn('ΓÜá∩╕Å Could not load model info, using defaults');
         }
       } catch (e) {
-        console.warn('⚠️ Could not load model info, using defaults');
+        console.warn('ΓÜá∩╕Å Could not load model info, using defaults');
       }
       
-      // Check if model file exists first
+      onProgress?.({
+        stage: 'verify',
+        percent: 15,
+        message: 'Checking model file',
+        subMessage: 'Verifying breed_classifier.onnx is available',
+      });
+
       try {
-        const modelResponse = await fetch(modelPath, { method: 'HEAD' });
-        if (!modelResponse.ok) {
-          throw new Error(`Model file not found at ${modelPath}. Status: ${modelResponse.status}`);
+        const headResponse = await fetch(modelPath, { method: 'HEAD' });
+        if (!headResponse.ok) {
+          throw new Error(`Model file not found at ${modelPath}. Status: ${headResponse.status}`);
         }
-        const contentLength = modelResponse.headers.get('content-length');
-        console.log('✅ Model file found, size:', contentLength ? `${(parseInt(contentLength) / (1024*1024)).toFixed(2)}MB` : 'unknown');
+        const contentLength = headResponse.headers.get('content-length');
+        console.log('Γ£à Model file found, size:', contentLength ? `${(parseInt(contentLength) / (1024*1024)).toFixed(2)}MB` : 'unknown');
       } catch (fetchError) {
-        console.error('❌ Model file check failed:', fetchError);
+        console.error('Γ¥î Model file check failed:', fetchError);
         throw new Error(`Could not access ONNX model file at ${modelPath}. Please ensure breed_classifier.onnx exists in public/models/breed_classifier/`);
       }
-      
-      // Load the ONNX model with modern onnxruntime-web
-      console.log('🔄 Creating ONNX inference session...');
-      
-      // Fetch the model file first
-      console.log('🔄 Fetching model file...');
-      const modelResponse = await fetch(modelPath);
-      if (!modelResponse.ok) {
-        throw new Error(`Failed to fetch model: ${modelResponse.status} ${modelResponse.statusText}`);
-      }
-      const modelBuffer = await modelResponse.arrayBuffer();
-      const modelData = new Uint8Array(modelBuffer);
-      console.log('✅ Model file fetched successfully, size:', `${(modelData.byteLength / (1024*1024)).toFixed(2)}MB`);
+
+      console.log('≡ƒöä Fetching model file...');
+      const modelData = await this.fetchModelWithProgress(modelPath, onProgress);
+      console.log('Γ£à Model file fetched successfully, size:', `${(modelData.byteLength / (1024*1024)).toFixed(2)}MB`);
+
+      onProgress?.({
+        stage: 'init',
+        percent: 78,
+        message: 'Initializing model',
+        subMessage: 'Building inference session (may take a moment)',
+      });
       
       // Try multiple execution providers in order of preference
       const providers = [
@@ -89,14 +96,14 @@ class ONNXResNet50Service {
       
       for (const provider of providers) {
         try {
-          console.log(`🔄 Trying ${provider.name} execution provider...`);
+          console.log(`≡ƒöä Trying ${provider.name} execution provider...`);
           this.session = await ort.InferenceSession.create(modelData, provider.config);
-          console.log(`✅ Successfully loaded with ${provider.name} provider!`);
-          console.log(`📊 Input names: ${this.session.inputNames.join(', ')}`);
-          console.log(`📊 Output names: ${this.session.outputNames.join(', ')}`);
+          console.log(`Γ£à Successfully loaded with ${provider.name} provider!`);
+          console.log(`≡ƒôè Input names: ${this.session.inputNames.join(', ')}`);
+          console.log(`≡ƒôè Output names: ${this.session.outputNames.join(', ')}`);
           break;
         } catch (providerError) {
-          console.warn(`⚠️ ${provider.name} provider failed:`, providerError);
+          console.warn(`ΓÜá∩╕Å ${provider.name} provider failed:`, providerError);
           lastError = providerError instanceof Error ? providerError : new Error(String(providerError));
           continue;
         }
@@ -105,13 +112,15 @@ class ONNXResNet50Service {
       if (!this.session) {
         throw new Error(`Failed to create ONNX session with any provider. Last error: ${lastError?.message}`);
       }
-      console.log('✅ Your ONNX ResNet-50 model loaded successfully!');
-      console.log('📊 Input names:', this.session.inputNames);
-      console.log('📊 Output names:', this.session.outputNames);
+      console.log('Γ£à Your ONNX ResNet-50 model loaded successfully!');
+      console.log('≡ƒôè Input names:', this.session.inputNames);
+      console.log('≡ƒôè Output names:', this.session.outputNames);
+
+      onProgress?.({ stage: 'complete', percent: 100, message: 'Model ready' });
       
     } catch (error) {
-      console.error('❌ Failed to load your ONNX ResNet-50 model:', error);
-      console.error('❌ Error details:', {
+      console.error('Γ¥î Failed to load your ONNX ResNet-50 model:', error);
+      console.error('Γ¥î Error details:', {
         message: error instanceof Error ? error.message : 'Unknown error',
         type: typeof error,
         stack: error instanceof Error ? error.stack : 'No stack trace'
@@ -120,6 +129,54 @@ class ONNXResNet50Service {
     } finally {
       this.isLoading = false;
     }
+  }
+
+  private async fetchModelWithProgress(
+    modelPath: string,
+    onProgress?: ProgressReporter
+  ): Promise<Uint8Array> {
+    const response = await fetch(modelPath);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch model: ${response.status} ${response.statusText}`);
+    }
+
+    const total = Number(response.headers.get('content-length') || 0);
+    if (!response.body || !total) {
+      onProgress?.({
+        stage: 'download',
+        percent: 40,
+        message: 'Downloading model',
+        subMessage: 'Loading ~90 MB (progress unavailable)',
+      });
+      const buffer = await response.arrayBuffer();
+      return new Uint8Array(buffer);
+    }
+
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let received = 0;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      received += value.length;
+      const downloadPercent = 20 + Math.round((received / total) * 55);
+      onProgress?.({
+        stage: 'download',
+        percent: downloadPercent,
+        message: 'Downloading breed model',
+        subMessage: `${(received / (1024 * 1024)).toFixed(1)} / ${(total / (1024 * 1024)).toFixed(1)} MB`,
+      });
+    }
+
+    const combined = new Uint8Array(received);
+    let offset = 0;
+    for (const chunk of chunks) {
+      combined.set(chunk, offset);
+      offset += chunk.length;
+    }
+    return combined;
   }
 
   /**
@@ -164,9 +221,9 @@ class ONNXResNet50Service {
   /**
    * Predict breed using your real trained ONNX ResNet-50 model
    */
-  async predictBreed(imageFile: File): Promise<ModelPrediction> {
+  async predictBreed(imageFile: File, onProgress?: ProgressReporter): Promise<ModelPrediction> {
     if (!this.session) {
-      await this.loadModel();
+      await this.loadModel(undefined, onProgress);
     }
 
     if (!this.session) {
@@ -177,7 +234,13 @@ class ONNXResNet50Service {
       const img = new Image();
       img.onload = async () => {
         try {
-          console.log('🧠 Running inference with your trained ONNX ResNet-50...');
+          onProgress?.({
+            stage: 'inference',
+            percent: 88,
+            message: 'Analyzing image',
+            subMessage: 'Running ResNet-50 on your photo',
+          });
+          console.log('≡ƒºá Running inference with your trained ONNX ResNet-50...');
           
           // Preprocess exactly as your training
           const inputTensor = await this.preprocessImage(img);
@@ -188,7 +251,7 @@ class ONNXResNet50Service {
           feeds[inputName] = inputTensor;
           
           // Run inference with your ONNX ResNet-50 model
-          console.log('🔥 Running inference...');
+          console.log('≡ƒöÑ Running inference...');
           const results = await this.session!.run(feeds);
           
           // Get output tensor
@@ -208,8 +271,8 @@ class ONNXResNet50Service {
 
           const topPrediction = predictions[0];
 
-          console.log(`🎯 ONNX ResNet-50 predicted: ${topPrediction.breed} (${topPrediction.confidence}%)`);
-          console.log(`📈 Top 3: ${predictions.slice(0, 3).map(p => `${p.breed}(${p.confidence}%)`).join(', ')}`);
+          console.log(`≡ƒÄ» ONNX ResNet-50 predicted: ${topPrediction.breed} (${topPrediction.confidence}%)`);
+          console.log(`≡ƒôê Top 3: ${predictions.slice(0, 3).map(p => `${p.breed}(${p.confidence}%)`).join(', ')}`);
 
           resolve({
             breedName: topPrediction.breed,
@@ -217,7 +280,7 @@ class ONNXResNet50Service {
             allPredictions: predictions.slice(0, 5) // Top 5 predictions
           });
         } catch (error) {
-          console.error('❌ ONNX ResNet-50 inference error:', error);
+          console.error('Γ¥î ONNX ResNet-50 inference error:', error);
           reject(error);
         }
       };
@@ -257,6 +320,9 @@ class ONNXResNet50Service {
 export const onnxResNet50Service = new ONNXResNet50Service();
 
 // Main prediction function for your ONNX ResNet-50
-export const predictWithONNXResNet50 = async (imageFile: File): Promise<ModelPrediction> => {
-  return onnxResNet50Service.predictBreed(imageFile);
+export const predictWithONNXResNet50 = async (
+  imageFile: File,
+  onProgress?: ProgressReporter
+): Promise<ModelPrediction> => {
+  return onnxResNet50Service.predictBreed(imageFile, onProgress);
 };

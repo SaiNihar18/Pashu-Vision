@@ -11,7 +11,8 @@
   },
   "weightsManifest": [],
   "userDefinedMetadata": {
-    "note": "This is a placeholder. Real model conversion needed.",
+    "note": "Placeholder for TensorFlow.js path. Production inference uses breed_classifier.onnx via onnxResNet50Service.",
+    "primaryModel": "breed_classifier.onnx",
     "breeds": 41
   }
 }

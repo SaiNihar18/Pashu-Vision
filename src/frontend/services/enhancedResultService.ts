@@ -3,6 +3,7 @@
 
 import { ModelPrediction } from './onnxModelService';
 import { getEnhancedBreedInfo, EnhancedBreedInfo, getBreedInfo } from './breedDataService';
+import type { BreedInfo } from '../types';
 
 /**
  * Enhanced prediction result with detailed breed information
@@ -63,6 +64,34 @@ export function enhancePredictionResult(
  */
 export function formatBreedName(breedName: string): string {
   return breedName.replace(/_/g, ' ');
+}
+
+/** Build display-ready BreedInfo from ONNX/intelligent prediction using local database. */
+export function breedInfoFromModelPrediction(
+  prediction: ModelPrediction,
+  modelType: 'intelligent' | 'onnx' = 'onnx'
+): BreedInfo {
+  const enhanced = enhancePredictionResult(prediction, modelType);
+  const displayName = formatBreedName(prediction.breedName);
+
+  return {
+    breed_name: displayName,
+    confidence: prediction.confidence,
+    short_description:
+      enhanced.breedInfo?.description ||
+      `${displayName} identified by the on-device AI model.`,
+    breed_details: {
+      origin: enhanced.breedInfo?.origin || 'India',
+      typical_uses:
+        enhanced.breedInfo?.typicalUses?.join(', ') || 'Dairy and farming',
+      notable_features:
+        enhanced.breedInfo?.notableFeatures?.join(', ') ||
+        'See breed database for details',
+    },
+    suggestions: (prediction.allPredictions || [])
+      .slice(1, 4)
+      .map((p) => formatBreedName(p.breed)),
+  };
 }
 
 /**

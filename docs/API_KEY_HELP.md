@@ -1,43 +1,35 @@
-# 🔑 API Key Fix Instructions
+# Gemini API Key Setup
 
-## ❌ Current Issue
-Your API key `AIzaSyC8xmDEFQtOaaa7WNmSsUJWLBj5_M-GU6w` is **INVALID** because:
-- It's only **34 characters** long
-- Valid Gemini API keys are **39 characters** long
-- It appears to be truncated/incomplete
+## Get a key
 
-## ✅ How to Fix
+1. Open [Google AI Studio](https://aistudio.google.com/apikey)
+2. Create or copy an API key (typically **39 characters**, starts with `AIzaSy`)
 
-### Step 1: Get a Complete API Key
-1. Go to [Google AI Studio](https://makersuite.google.com/app/apikey)
-2. Sign in with your Google account
-3. Create a new API key or copy an existing one
-4. The key should be **39 characters** and look like: `AIzaSyBxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`
+## Configure locally
 
-### Step 2: Update Your .env File
-1. Open `/Users/tanishqsuryas/Downloads/breedai 2/.env`
-2. Replace the current line:
+1. Copy the example env file:
+   ```bash
+   cp .env.example .env
    ```
-   GEMINI_API_KEY=AIzaSyC8xmDEFQtOaaa7WNmSsUJWLBj5_M-GU6w
+2. Edit `.env` and set:
    ```
-   With your complete key:
+   GEMINI_API_KEY=your_full_key_here
    ```
-   GEMINI_API_KEY=AIzaSyBxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+3. Restart the dev server:
+   ```bash
+   npm run dev
    ```
 
-### Step 3: Test
-1. Save the file
-2. The Vite server will automatically restart
-3. Try uploading an image again
+## Production (Vercel / Netlify / etc.)
 
-## 🧪 For Testing Only (Temporary)
-If you need to test the app functionality while getting your real API key, you can temporarily use this mock key format:
-```
-GEMINI_API_KEY=AIzaSyBxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-```
-*(This won't work for real predictions but will stop the validation errors)*
+Add `GEMINI_API_KEY` in your host’s **Environment Variables** dashboard. Never commit `.env` to git.
 
-## 🔍 Verification
-- Valid key length: **39 characters**
-- Should start with: `AIzaSy`
-- Should NOT contain spaces or special characters
+## Troubleshooting
+
+| Symptom | Fix |
+|--------|-----|
+| "No Gemini API key found" | Create `.env` from `.env.example` and set `GEMINI_API_KEY` |
+| "Invalid Gemini API key: truncated" | Use the full 39-character key from AI Studio |
+| Chat works locally but not deployed | Add `GEMINI_API_KEY` on the hosting platform and redeploy |
+
+**Security:** Do not paste API keys into source code or documentation. Rotate any key that was ever committed publicly.

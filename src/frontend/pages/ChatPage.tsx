@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import type { View } from '../App';
 import PageHeader from '../components/PageHeader';
 import { ArrowRightIcon, SpeakerIcon, MicrophoneIcon } from '../components/icons';

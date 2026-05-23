@@ -4,12 +4,13 @@ import { CameraIcon, DatabaseIcon, ArrowRightIcon, ChartBarIcon, MapPinIcon, Mic
 import { useTranslation } from '../hooks/useTranslation';
 import { useLanguage, supportedLanguages } from '../contexts/LanguageContext';
 import { useVoiceCommands } from '../contexts/VoiceCommandContext';
+import type { TranslationKey } from '../translations';
 
 interface HomePageProps {
   navigateTo: (view: View) => void;
 }
 
-const FeatureCard: React.FC<{ icon: React.ReactNode; titleKey: string; descKey: string; onClick?: () => void; }> = ({ icon, titleKey, descKey, onClick }) => {
+const FeatureCard: React.FC<{ icon: React.ReactNode; titleKey: TranslationKey; descKey: TranslationKey; onClick?: () => void; }> = ({ icon, titleKey, descKey, onClick }) => {
   const t = useTranslation();
   const Component = onClick ? 'button' : 'div';
   return (
@@ -28,7 +29,7 @@ const FeatureCard: React.FC<{ icon: React.ReactNode; titleKey: string; descKey: 
   );
 };
 
-const HowItWorksStep: React.FC<{ num: number, textKey: string }> = ({ num, textKey }) => {
+const HowItWorksStep: React.FC<{ num: number, textKey: TranslationKey }> = ({ num, textKey }) => {
   const t = useTranslation();
   return (
     <div className="flex items-center space-x-4">
@@ -38,7 +39,7 @@ const HowItWorksStep: React.FC<{ num: number, textKey: string }> = ({ num, textK
   );
 };
 
-const ActionButton: React.FC<{ onClick: () => void; titleKey: string; descKey: string; icon: React.ReactNode; isPrimary?: boolean; }> = ({ onClick, titleKey, descKey, icon, isPrimary = true }) => {
+const ActionButton: React.FC<{ onClick: () => void; titleKey: TranslationKey; descKey: TranslationKey; icon: React.ReactNode; isPrimary?: boolean; }> = ({ onClick, titleKey, descKey, icon, isPrimary = true }) => {
   const t = useTranslation();
   return (
     <button onClick={onClick} className={`group w-full text-left p-5 rounded-xl shadow-lg transition-all duration-300 transform hover:scale-105 ${isPrimary ? 'bg-gradient-to-br from-brand-primary-dark to-brand-primary text-white' : 'bg-base-100/80 backdrop-blur-lg border border-base-400/20 text-contrast-200'}`}>

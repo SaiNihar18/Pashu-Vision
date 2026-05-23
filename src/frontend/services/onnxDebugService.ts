@@ -8,7 +8,9 @@ export class ONNXDebugService {
       
       // Step 1: Configure ONNX Runtime
       console.log('🔧 Debug: Configuring ONNX Runtime...');
-      ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/';
+      // Use shared Vite-compatible WASM config (see config/onnxRuntime.ts)
+      const { ort: ortConfigured } = await import('../config/onnxRuntime');
+      Object.assign(ort.env.wasm, ortConfigured.env.wasm);
       ort.env.wasm.numThreads = 1;
       ort.env.logLevel = 'warning';
       

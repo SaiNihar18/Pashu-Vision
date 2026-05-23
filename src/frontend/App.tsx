@@ -8,6 +8,8 @@ import VoiceCommandsPage from './pages/VoiceCommandsPage';
 import BreedDatabasePage from './pages/BreedDatabasePage';
 import HistoryPage from './pages/HistoryPage';
 import ChatPage from './pages/ChatPage';
+import BatchProcessingPage from './pages/BatchProcessingPage';
+import LocationPage from './pages/LocationPage';
 import type { HistoryEntry } from './types';
 import { useVoiceCommands } from './contexts/VoiceCommandContext';
 
@@ -16,7 +18,7 @@ export interface BreedPrediction {
   confidence: number;
 }
 
-export type View = 'home' | 'quick' | 'multiAngle' | 'health' | 'analytics' | 'voice' | 'database' | 'history' | 'chat';
+export type View = 'home' | 'quick' | 'multiAngle' | 'health' | 'analytics' | 'voice' | 'database' | 'history' | 'chat' | 'batch' | 'location';
 
 export interface HistoryContext {
   item: HistoryEntry;
@@ -42,13 +44,11 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!lastCommand) return;
 
-    const navViews: View[] = ['home', 'quick', 'multiAngle', 'health', 'analytics', 'voice', 'database', 'history', 'chat'];
+    const navViews: View[] = ['home', 'quick', 'multiAngle', 'health', 'analytics', 'voice', 'database', 'history', 'chat', 'batch', 'location'];
 
     if (navViews.includes(lastCommand as View)) {
-        if (view !== 'home' || lastCommand === 'home') {
-            navigateTo(lastCommand as View);
-            clearLastCommand();
-        }
+      navigateTo(lastCommand as View);
+      clearLastCommand();
     }
   }, [lastCommand, clearLastCommand, navigateTo, view]);
 
@@ -70,6 +70,10 @@ const App: React.FC = () => {
         return <HistoryPage navigateTo={navigateTo} />;
       case 'chat':
         return <ChatPage navigateTo={navigateTo} />;
+      case 'batch':
+        return <BatchProcessingPage navigateTo={navigateTo} />;
+      case 'location':
+        return <LocationPage navigateTo={navigateTo} />;
       case 'home':
       default:
         return <HomePage navigateTo={navigateTo} />;

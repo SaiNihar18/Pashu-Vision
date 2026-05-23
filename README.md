@@ -103,21 +103,31 @@ npm install
 
 ### Environment
 
-Create a `.env` file at the project root (do not commit it):
+Copy the example file and add your API key (do not commit `.env`):
+
+```bash
+# Windows
+copy .env.example .env
+
+# macOS / Linux
+cp .env.example .env
+```
 
 ```bash
 GEMINI_API_KEY=your_api_key_here
 ```
 
+Large ONNX model (~90 MB): use **Git LFS** before pushing — see [docs/MODEL_GITHUB_LFS.md](docs/MODEL_GITHUB_LFS.md).
+
 ### Run Locally
 
-Frontend only (UI + ONNX in browser):
+**Option A — UI + ONNX only** (breed ID works; Gemini chat/details need Option B):
 
 ```bash
 npm run dev
 ```
 
-Full stack (UI + serverless Gemini proxy):
+**Option B — Full stack** (recommended for Gemini chat and breed details):
 
 ```bash
 npx vercel dev

@@ -36,7 +36,7 @@ const BREED_CHARACTERISTICS = {
   "Umblachery": { type: "cattle", region: "Tamil Nadu", color_hints: ["grey", "black"], draft: true, size: "medium" },
   "Vechur": { type: "cattle", region: "Kerala", color_hints: ["red"], dairy: true, size: "small" },
   "Kasargod": { type: "cattle", region: "Karnataka", color_hints: ["red", "brown"], draft: true, size: "small" },
-  "Malnad_Gidda": { type: "cattle", region: "Karnataka", color_hints: ["black", "brown"], dairy: true, size: "small" },
+  "Malnad_gidda": { type: "cattle", region: "Karnataka", color_hints: ["black", "brown"], dairy: true, size: "small" },
   "Krishna_Valley": { type: "cattle", region: "Maharashtra", color_hints: ["grey", "white"], draft: true, size: "medium" },
   "Nagori": { type: "cattle", region: "Rajasthan", color_hints: ["white", "grey"], draft: true, size: "medium" },
   "Kenkatha": { type: "cattle", region: "Madhya Pradesh", color_hints: ["white", "grey"], draft: true, size: "medium" },

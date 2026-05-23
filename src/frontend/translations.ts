@@ -1446,6 +1446,7 @@ export const translations = {
   // Voice Commands Keywords
   command_keyword_quick_analysis: { en: 'quick analysis', hi: 'त्वरित विश्लेषण' },
   command_keyword_multi_angle: { en: 'multi angle analysis', hi: 'बहु-कोणीय विश्लेषण' },
+  command_keyword_health_assessment: { en: 'health assessment', hi: 'स्वास्थ्य मूल्यांकन' },
   command_keyword_batch_processing: { en: 'batch processing', hi: 'बैच प्रोसेसिंग' },
   command_keyword_view_analytics: { en: 'view analytics', hi: 'एनालिटिक्स देखें' },
   command_keyword_ask_ai: { en: 'ask ai assistant', hi: 'एआई सहायक से पूछें' },

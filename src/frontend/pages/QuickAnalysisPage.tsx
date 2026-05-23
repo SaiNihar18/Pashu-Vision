@@ -1,58 +1,99 @@
-import React, { useState, useCallback, useEffect } from 'react';
+﻿import React, { useState, useCallback, useEffect, useRef } from 'react';
 import type { View, HistoryContext } from '../App';
 import type { BreedInfo } from '../types';
 import { predictWithONNXResNet50 } from '../services/onnxResNet50Service';
 import { getBreedDetails } from '../services/geminiService';
 import { addToHistory, fileToDataUrl } from '../services/historyService';
-import { enhancePredictionResult, EnhancedPredictionResult } from '../services/enhancedResultService';
-import { getEnhancedBreedInfo } from '../services/breedDataService';
+import {
+  breedInfoFromModelPrediction,
+  formatBreedName,
+} from '../services/enhancedResultService';
+import type { ModelLoadProgress } from '../services/modelLoadProgress';
+import type { ModelPrediction } from '../services/onnxModelService';
 
 import PageHeader from '../components/PageHeader';
 import { ImageCapture } from '../components/ImageCapture';
 import { ResultCard } from '../components/ResultCard';
-import { LoadingSpinner } from '../components/LoadingSpinner';
+import { AnalysisProgress } from '../components/AnalysisProgress';
 import { RefreshCwIcon } from '../components/icons';
 
-
 interface QuickAnalysisPageProps {
-  navigateTo: (view: View, context?: any) => void;
+  navigateTo: (view: View, context?: unknown) => void;
   historyContext: HistoryContext | null;
 }
 
 const dataUrlToFile = async (dataUrl: string, filename: string): Promise<File> => {
-    const res = await fetch(dataUrl);
-    const blob = await res.blob();
-    return new File([blob], filename, { type: blob.type });
+  const res = await fetch(dataUrl);
+  const blob = await res.blob();
+  return new File([blob], filename, { type: blob.type });
 };
 
 const QuickAnalysisPage: React.FC<QuickAnalysisPageProps> = ({ navigateTo, historyContext }) => {
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [result, setResult] = useState<BreedInfo | null>(null);
-  const [enhancedResult, setEnhancedResult] = useState<EnhancedPredictionResult | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [predictionSource, setPredictionSource] = useState<string>('onnx_resnet50');
+  const [predictionSource, setPredictionSource] = useState('onnx_resnet50');
   const [modelConfidence, setModelConfidence] = useState<number | null>(null);
+  const [loadProgress, setLoadProgress] = useState<ModelLoadProgress | null>(null);
+  const [geminiWarning, setGeminiWarning] = useState<string | null>(null);
+
+  const resultsRef = useRef<HTMLDivElement>(null);
+  const historyLoadedRef = useRef(false);
 
   useEffect(() => {
-    if (historyContext) {
-      const { item, mode } = historyContext;
-      dataUrlToFile(item.imageDataUrl, `history-${item.id}.jpg`).then(file => {
-          handleCapture(file);
-      });
+    if (!imageFile) {
+      setImagePreviewUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(imageFile);
+    setImagePreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [imageFile]);
 
+  useEffect(() => {
+    if (!historyContext || historyLoadedRef.current) return;
+    historyLoadedRef.current = true;
+
+    const { item, mode } = historyContext;
+    dataUrlToFile(item.imageDataUrl, `history-${item.id}.jpg`).then((file) => {
+      setImageFile(file);
+      setError(null);
+      setGeminiWarning(null);
       if (mode === 'view') {
         setResult(item.result);
       }
-    } else {
-        handleReset();
-    }
+    });
   }, [historyContext]);
-  
+
+  useEffect(() => {
+    if (result && !isLoading) {
+      resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [result, isLoading]);
+
   const handleCapture = (file: File) => {
     setImageFile(file);
     setResult(null);
     setError(null);
+    setGeminiWarning(null);
+    setLoadProgress(null);
+  };
+
+  const handleReset = () => {
+    setImageFile(null);
+    setResult(null);
+    setError(null);
+    setIsLoading(false);
+    setPredictionSource('onnx_resnet50');
+    setModelConfidence(null);
+    setLoadProgress(null);
+    setGeminiWarning(null);
+    historyLoadedRef.current = false;
+    if (historyContext) {
+      navigateTo('quick');
+    }
   };
 
   const handleIdentify = useCallback(async () => {
@@ -60,114 +101,89 @@ const QuickAnalysisPage: React.FC<QuickAnalysisPageProps> = ({ navigateTo, histo
 
     setIsLoading(true);
     setResult(null);
-    setEnhancedResult(null);
     setError(null);
+    setGeminiWarning(null);
     setPredictionSource('onnx_resnet50');
     setModelConfidence(null);
+    setLoadProgress({
+      stage: 'wasm',
+      percent: 2,
+      message: 'Starting analysis',
+      subMessage: 'Preparing AI engine and model',
+    });
 
-    let modelPrediction: any = null;
+    let modelPrediction: ModelPrediction;
     let predictionSource = 'onnx_resnet50';
 
     try {
-      console.log('🚀 Starting breed prediction with your trained ONNX ResNet-50 model...');
-      
-      // Step 1: Try to get breed prediction using your trained ONNX ResNet-50 model
       try {
-        modelPrediction = await predictWithONNXResNet50(imageFile);
-        console.log('✅ ONNX ResNet-50 prediction successful:', modelPrediction);
+        modelPrediction = await predictWithONNXResNet50(imageFile, (p) => setLoadProgress(p));
         predictionSource = 'onnx_resnet50';
       } catch (onnxError) {
-        console.warn('⚠️ ONNX ResNet-50 model failed, falling back to intelligent predictor...');
-        console.warn('ONNX Error:', onnxError);
-        
-        // Fallback to intelligent predictor if ONNX fails
+        console.warn('ONNX failed, using intelligent fallback:', onnxError);
         const { predictBreedIntelligent } = await import('../services/intelligentPredictor');
+        setLoadProgress({
+          stage: 'inference',
+          percent: 50,
+          message: 'Using backup analyzer',
+          subMessage: 'ONNX unavailable ΓÇö running intelligent fallback',
+        });
         modelPrediction = await predictBreedIntelligent(imageFile);
-        console.log('✅ Intelligent predictor fallback successful:', modelPrediction);
         predictionSource = 'intelligent_predictor';
       }
-      
+
       setModelConfidence(modelPrediction.confidence);
       setPredictionSource(predictionSource);
-      
+
+      const localResult = breedInfoFromModelPrediction(
+        modelPrediction,
+        predictionSource === 'onnx_resnet50' ? 'onnx' : 'intelligent'
+      );
+
+      // Show ONNX/local results immediately (before Gemini)
+      setResult({ ...localResult });
+      setLoadProgress({
+        stage: 'details',
+        percent: 92,
+        message: 'Loading extra breed details',
+        subMessage: 'Optional: fetching descriptions from Gemini AI',
+      });
+
       try {
-        // Step 2: Try to get detailed information from Gemini
-        const breedDetails = await getBreedDetails(modelPrediction.breedName, modelPrediction.confidence);
+        const breedDetails = await getBreedDetails(
+          formatBreedName(modelPrediction.breedName),
+          modelPrediction.confidence
+        );
         setResult(breedDetails);
-        
+        setPredictionSource(`${predictionSource}_gemini`);
         const imageDataUrl = await fileToDataUrl(imageFile);
         addToHistory({ imageDataUrl, result: breedDetails });
-        
-        console.log('✅ Prediction completed with Gemini details:', {
-          breed: breedDetails.breed_name,
-          confidence: breedDetails.confidence,
-          source: `${predictionSource}_gemini`
-        });
       } catch (geminiError) {
-        console.log('⚠️ Gemini API unavailable, using enhanced breed database fallback...');
-        
-        // Step 3: Fallback to enhanced breed database
-        const enhancedPrediction = enhancePredictionResult(modelPrediction, predictionSource === 'onnx_resnet50' ? 'onnx' : 'intelligent');
-        setEnhancedResult(enhancedPrediction);
+        console.warn('Gemini unavailable, keeping local results:', geminiError);
         setPredictionSource(`${predictionSource}_enhanced_db`);
-        
-        // Create compatible result for history
-        const fallbackResult: BreedInfo = {
-          breed_name: modelPrediction.breedName,
-          confidence: modelPrediction.confidence,
-          short_description: enhancedPrediction.breedInfo?.description || 'Breed information from local database.',
-          breed_details: {
-            origin: enhancedPrediction.breedInfo?.origin || 'Unknown',
-            typical_uses: enhancedPrediction.breedInfo?.typicalUses?.join(', ') || 'General farming',
-            notable_features: enhancedPrediction.breedInfo?.notableFeatures?.join(', ') || 'Various characteristics'
-          }
-        };
-        
+        setGeminiWarning(
+          geminiError instanceof Error && geminiError.message.includes('403')
+            ? 'Gemini API returned 403 (invalid or restricted API key). Results below are from your ONNX model and local breed database. Update GEMINI_API_KEY in .env and restart the dev server.'
+            : 'Could not reach Gemini AI. Results below are from your ONNX model and local breed database.'
+        );
+        setResult({ ...localResult });
         const imageDataUrl = await fileToDataUrl(imageFile);
-        addToHistory({ imageDataUrl, result: fallbackResult });
-        
-        console.log('✅ Prediction completed with enhanced database:', {
-          breed: enhancedPrediction.breedName,
-          confidence: enhancedPrediction.confidence,
-          source: `${predictionSource}_enhanced_db`,
-          hasBreedInfo: !!enhancedPrediction.breedInfo
-        });
+        addToHistory({ imageDataUrl, result: localResult });
       }
+
+      setLoadProgress({ stage: 'complete', percent: 100, message: 'Analysis complete' });
     } catch (err) {
       let errorMessage = 'An unknown error occurred.';
-      
       if (err instanceof Error) {
         errorMessage = err.message;
-        
-        // Handle specific error types
-        if (err.message.includes('No Gemini API key found')) {
-          errorMessage = '🚨 Configuration Error: Gemini API key not found. Please check your environment configuration.';
-        } else if (err.message.includes('Invalid API key detected')) {
-          errorMessage = '🚨 API Key Error: The provided Gemini API key appears to be invalid. Please verify your API key from Google AI Studio.';
-        } else if (err.message.includes('model') || err.message.includes('ONNX')) {
-          errorMessage = '🚨 Model Error: Could not load breed classification model. Please check your browser compatibility.';
-        }
       }
-      
       setError(`Failed to identify the breed. ${errorMessage}`);
-      console.error('❌ Final prediction error:', err);
+      console.error('Final prediction error:', err);
     } finally {
       setIsLoading(false);
+      setTimeout(() => setLoadProgress(null), 2000);
     }
   }, [imageFile]);
-
-  const handleReset = () => {
-    setImageFile(null);
-    setResult(null);
-    setEnhancedResult(null);
-    setError(null);
-    setIsLoading(false);
-    setPredictionSource('onnx_resnet50');
-    setModelConfidence(null);
-    if (historyContext) {
-      navigateTo('quick'); // Clear context
-    }
-  };
 
   return (
     <div className="min-h-screen">
@@ -179,10 +195,9 @@ const QuickAnalysisPage: React.FC<QuickAnalysisPageProps> = ({ navigateTo, histo
             <div className="text-center mb-8">
               <h2 className="text-3xl font-bold text-contrast-100">Quick Analysis</h2>
               <p className="text-contrast-300 mt-1">Take a clear photo for instant breed identification</p>
-              <p className="text-contrast-300 text-sm">स्पष्ट तस्वीर लें / Clear photo लें</p>
             </div>
-            
-            {!result && (
+
+            {!result && !isLoading && (
               <>
                 <ImageCapture onCapture={handleCapture} promptText="Capture or upload an image for analysis" />
                 {error && (
@@ -193,81 +208,65 @@ const QuickAnalysisPage: React.FC<QuickAnalysisPageProps> = ({ navigateTo, histo
                 )}
                 <button
                   onClick={handleIdentify}
-                  disabled={!imageFile || isLoading}
-                  className="mt-6 w-full bg-gradient-to-br from-brand-primary-dark to-brand-primary text-white font-bold py-3 px-4 rounded-lg shadow-lg hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-primary disabled:bg-gray-400 disabled:cursor-not-allowed disabled:shadow-none transform hover:-translate-y-0.5 transition-all duration-300"
+                  disabled={!imageFile}
+                  className="mt-6 w-full bg-gradient-to-br from-brand-primary-dark to-brand-primary text-white font-bold py-3 px-4 rounded-lg shadow-lg hover:shadow-xl disabled:bg-gray-400 disabled:cursor-not-allowed transform hover:-translate-y-0.5 transition-all duration-300"
                 >
-                  {isLoading ? 'Analyzing...' : 'Identify Breed'}
+                  Identify Breed
                 </button>
               </>
             )}
-            
-            {isLoading && <LoadingSpinner />}
-            
-            {result && !isLoading && (
-              <div>
-                <ResultCard result={result} />
-                
-                {/* Prediction Source Info */}
-                <div className="mt-4 p-3 bg-brand-primary/5 border border-brand-primary/20 rounded-lg">
-                  <div className="text-sm text-contrast-300">
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium">
-                        Prediction Source: 
-                        <span className={`ml-1 px-2 py-1 rounded text-xs font-bold ${
-                          predictionSource.includes('onnx_resnet50') 
-                            ? 'bg-green-100 text-green-800' 
-                            : predictionSource.includes('intelligent_predictor')
-                            ? 'bg-purple-100 text-purple-800' 
-                            : 'bg-blue-100 text-blue-800'
-                        }`}>
-                          {predictionSource.includes('onnx_resnet50') ? 'ONNX ResNet-50 Model' : 
-                           predictionSource.includes('intelligent_predictor') ? 'Intelligent Analysis' : 'Gemini AI Only'}
-                          {predictionSource.includes('gemini') ? ' + Gemini' : 
-                           predictionSource.includes('enhanced_db') ? ' + Local Database' : ''}
-                        </span>
-                      </span>
-                      {modelConfidence && (
-                        <span className="text-xs">
-                          Model Confidence: {modelConfidence}%
-                        </span>
-                      )}
+
+            {imagePreviewUrl && (isLoading || result) && (
+              <div className="mb-4 rounded-xl overflow-hidden border border-base-400/20">
+                <img src={imagePreviewUrl} alt="Selected animal" className="w-full max-h-64 object-cover" />
+              </div>
+            )}
+
+            {isLoading && loadProgress && <AnalysisProgress progress={loadProgress} />}
+
+            {isLoading && !loadProgress && (
+              <p className="text-center text-contrast-300 py-4">AnalyzingΓÇª</p>
+            )}
+
+            {error && (isLoading || result) && (
+              <div className="mt-4 text-center text-red-600 bg-red-500/10 p-4 rounded-lg border border-red-500/20">
+                <p>{error}</p>
+              </div>
+            )}
+
+            <div ref={resultsRef}>
+              {result && !isLoading && (
+                <div className="mt-4">
+                  {geminiWarning && (
+                    <div className="mb-4 text-sm text-amber-800 bg-amber-50 border border-amber-200 p-3 rounded-lg">
+                      {geminiWarning}
                     </div>
-                    {predictionSource.includes('onnx_resnet50') && (
-                      <div className="text-xs mt-1 text-green-700">
-                        🚀 Using your trained ONNX ResNet-50 model (41 breeds)
-                        {predictionSource.includes('gemini') ? ' + Gemini AI details' : ' + Local breed database'}
-                      </div>
-                    )}
-                    {predictionSource.includes('intelligent_predictor') && (
-                      <div className="text-xs mt-1 text-purple-700">
-                        🧠 Using intelligent image analysis (color, features)
-                        {predictionSource.includes('gemini') ? ' + Gemini AI details' : ' + Local breed database'}
-                      </div>
-                    )}
-                    {predictionSource === 'gemini_fallback' && (
-                      <div className="text-xs mt-1 text-blue-700">
-                        ℹ️ Using Gemini AI analysis (models not available)
-                      </div>
-                    )}
-                    {predictionSource.includes('enhanced_db') && (
-                      <div className="text-xs mt-1 text-orange-700">
-                        📚 Offline Mode: Using comprehensive local breed database
-                      </div>
-                    )}
+                  )}
+                  <ResultCard result={result} />
+
+                  <div className="mt-4 p-3 bg-brand-primary/5 border border-brand-primary/20 rounded-lg text-sm text-contrast-300">
+                    <div className="flex flex-wrap justify-between gap-2">
+                      <span>
+                        Source:{' '}
+                        <strong>
+                          {predictionSource.includes('onnx') ? 'ONNX ResNet-50' : 'Intelligent fallback'}
+                          {predictionSource.includes('gemini') ? ' + Gemini' : ' + Local database'}
+                        </strong>
+                      </span>
+                      {modelConfidence != null && <span>Confidence: {modelConfidence}%</span>}
+                    </div>
                   </div>
-                </div>
-                
-                <div className="mt-6 space-y-3">
+
                   <button
                     onClick={handleReset}
-                    className="w-full flex items-center justify-center bg-gradient-to-br from-brand-primary to-brand-primary-light text-white font-bold py-3 px-4 rounded-lg shadow-lg hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-primary transform hover:-translate-y-0.5 transition-all duration-300"
+                    className="mt-6 w-full flex items-center justify-center bg-gradient-to-br from-brand-primary to-brand-primary-light text-white font-bold py-3 px-4 rounded-lg shadow-lg"
                   >
                     <RefreshCwIcon className="w-5 h-5 mr-2" />
                     Identify Another Animal
                   </button>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
       </div>

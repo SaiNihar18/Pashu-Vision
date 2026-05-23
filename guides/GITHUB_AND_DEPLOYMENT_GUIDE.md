@@ -14,7 +14,19 @@
 4. Choose visibility: **Public** (for portfolio) or **Private**
 5. Click "Create repository"
 
-### Step 2: Initialize Git & Push Code
+### Step 2: Upload the ONNX model (~90 MB) with Git LFS
+
+The breed classifier file `public/models/breed_classifier/breed_classifier.onnx` is too large for normal git. Use **Git LFS** before your first push:
+
+```powershell
+git lfs install
+git lfs track "*.onnx"
+git add .gitattributes public/models/breed_classifier/breed_classifier.onnx
+```
+
+See [docs/MODEL_GITHUB_LFS.md](../docs/MODEL_GITHUB_LFS.md) for full details and clone/deploy notes.
+
+### Step 3: Initialize Git & Push Code
 
 Open PowerShell in your project folder and run:
 
@@ -42,7 +54,7 @@ git push -u origin main
 - Or use: `git config --global user.email "your-email@example.com"`
 - And: `git config --global user.name "Your Name"`
 
-### Step 3: Verify Upload
+### Step 4: Verify Upload
 
 Visit: `https://github.com/USERNAME/pashu-vision`
 

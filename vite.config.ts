@@ -19,11 +19,11 @@ export default defineConfig(({ mode }) => {
         include: ['@tensorflow/tfjs', 'onnxruntime-web']
       },
       server: {
-  host: true,
-  allowedHosts: [
-    'alyssa-transportive-ghastly.ngrok-free.dev',  // your current ngrok host
-  ]
-},
+        host: true,
+        ...(env.VITE_ALLOWED_HOST
+          ? { allowedHosts: [env.VITE_ALLOWED_HOST] }
+          : {}),
+      },
       build: {
         rollupOptions: {
           output: {

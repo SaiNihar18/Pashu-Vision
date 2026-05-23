@@ -1,4 +1,4 @@
-import type { BreedInfo } from '../types';
+﻿import type { BreedInfo } from '../types';
 
 export type ChatMessage = { role: 'user' | 'model'; text: string };
 
