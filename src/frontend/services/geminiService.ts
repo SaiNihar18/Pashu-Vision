@@ -9,7 +9,8 @@ type GeminiResponse = {
   audioData?: string;
 };
 
-const GEMINI_ENDPOINT = '/api/gemini';
+const GEMINI_API_BASE = (import.meta.env.VITE_GEMINI_API_BASE || '').replace(/\/$/, '');
+const GEMINI_ENDPOINT = `${GEMINI_API_BASE}/api/gemini`;
 
 const postGemini = async <T>(payload: Record<string, unknown>): Promise<T> => {
   const response = await fetch(GEMINI_ENDPOINT, {
@@ -20,6 +21,9 @@ const postGemini = async <T>(payload: Record<string, unknown>): Promise<T> => {
 
   const text = await response.text();
   if (!response.ok) {
+    if (!text) {
+      throw new Error('Gemini proxy is unavailable. Run `npx vercel dev` or deploy the serverless API.');
+    }
     try {
       const json = JSON.parse(text) as GeminiResponse;
       throw new Error(json.error || json.message || `Gemini request failed (${response.status})`);
@@ -29,6 +33,10 @@ const postGemini = async <T>(payload: Record<string, unknown>): Promise<T> => {
       }
       throw new Error(text || `Gemini request failed (${response.status})`);
     }
+  }
+
+  if (!text) {
+    throw new Error('Gemini proxy returned an empty response.');
   }
 
   try {
@@ -100,31 +108,7 @@ export const textToSpeech = async (text: string, voiceName: string = 'vindemiatr
   } catch (error) {
     console.warn('Gemini TTS failed, falling back to Web Speech API:', error);
   }
-
-  if ('speechSynthesis' in window) {
-    return new Promise((resolve, reject) => {
-      const utterance = new SpeechSynthesisUtterance(text);
-      const voices = speechSynthesis.getVoices();
-      const selectedVoice = voices.find((voice) =>
-        voice.name.toLowerCase().includes(voiceName.toLowerCase()) ||
-        voice.lang.includes('en') ||
-        voice.lang.includes('hi')
-      ) || voices[0];
-
-      if (selectedVoice) {
-        utterance.voice = selectedVoice;
-      }
-
-      utterance.onend = () => resolve('');
-      utterance.onerror = (event) => {
-        reject(new Error(`Speech synthesis failed: ${event.error}`));
-      };
-
-      speechSynthesis.speak(utterance);
-    });
-  }
-
-  throw new Error('Text-to-speech not supported in this browser');
+  return '';
 };
 
 export const translateText = async (text: string, targetLanguage: string): Promise<string> => {

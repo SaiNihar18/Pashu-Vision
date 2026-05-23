@@ -4,7 +4,7 @@ import PageHeader from '../components/PageHeader';
 import { ArrowRightIcon, SpeakerIcon, MicrophoneIcon } from '../components/icons';
 import { useTranslation } from '../hooks/useTranslation';
 import { sendChatMessage, textToSpeech } from '../services/geminiService';
-import { playPcmAudio } from '../services/audioService';
+import { playPcmAudio, stopAudioPlayback } from '../services/audioService';
 import { useLanguage } from '../contexts/LanguageContext';
 
 interface ChatPageProps {
@@ -15,6 +15,21 @@ interface Message {
     role: 'user' | 'model';
     text: string;
 }
+
+const escapeHtml = (value: string): string => {
+    return value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+};
+
+const renderMessageHtml = (value: string): string => {
+    const escaped = escapeHtml(value);
+    const bolded = escaped.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    return bolded.replace(/\n/g, '<br />');
+};
 
 const availableVoices = [
   { id: 'vindemiatrix', nameKey: 'voice_name_vindemiatrix' as const },
@@ -34,12 +49,13 @@ const ChatPage: React.FC<ChatPageProps> = ({ navigateTo }) => {
         return localStorage.getItem(VOICE_STORAGE_KEY) || 'vindemiatrix'; // Default to vindemiatrix
     });
     const [isListening, setIsListening] = useState(false);
+    const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
     const recognitionRef = useRef<any>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         setMessages([
-            { role: 'model', text: "Hello! I'm your Pashu Vision assistant. How can I help you today with your cattle or buffalo questions?" }
+            { role: 'model', text: t('chat_greeting') }
         ]);
     }, []);
 
@@ -67,22 +83,77 @@ const ChatPage: React.FC<ChatPageProps> = ({ navigateTo }) => {
             setMessages(prev => [...prev, modelMessage]);
         } catch (error) {
             console.error("AI chat error:", error);
-            const errorMessage: Message = { role: 'model', text: "I'm sorry, I encountered an error. Could you please rephrase your question?" };
+            const errorMessage: Message = { role: 'model', text: t('chat_error_generic') };
             setMessages(prev => [...prev, errorMessage]);
         } finally {
             setIsLoading(false);
         }
     };
 
-    const handlePlayAudio = async (text: string, index: number) => {
+    const playSpeechSynthesis = (text: string): Promise<void> => {
+        return new Promise((resolve, reject) => {
+            if (!('speechSynthesis' in window)) {
+                reject(new Error('Speech synthesis not supported.'));
+                return;
+            }
+
+            const utterance = new SpeechSynthesisUtterance(text);
+            utteranceRef.current = utterance;
+
+            const voices = speechSynthesis.getVoices();
+            const selected = voices.find((voice) =>
+                voice.name.toLowerCase().includes(selectedVoice.toLowerCase()) ||
+                voice.lang.includes('en') ||
+                voice.lang.includes('hi')
+            ) || voices[0];
+
+            if (selected) {
+                utterance.voice = selected;
+            }
+
+            utterance.onend = () => {
+                utteranceRef.current = null;
+                resolve();
+            };
+            utterance.onerror = (event) => {
+                utteranceRef.current = null;
+                reject(new Error(`Speech synthesis failed: ${event.error}`));
+            };
+
+            speechSynthesis.speak(utterance);
+        });
+    };
+
+    const stopTtsPlayback = () => {
+        stopAudioPlayback();
+        if ('speechSynthesis' in window) {
+            speechSynthesis.cancel();
+        }
+        utteranceRef.current = null;
+        setPlayingMessageIndex(null);
+    };
+
+    const handlePlayAudio = async (text: string, index: number, event?: React.MouseEvent) => {
+        event?.preventDefault();
+        event?.stopPropagation();
+
+        if (playingMessageIndex === index) {
+            stopTtsPlayback();
+            return;
+        }
         if (playingMessageIndex !== null) return;
+
         setPlayingMessageIndex(index);
         try {
             const audioData = await textToSpeech(text, selectedVoice);
-            await playPcmAudio(audioData);
+            if (audioData) {
+                await playPcmAudio(audioData);
+            } else {
+                await playSpeechSynthesis(text);
+            }
         } catch (error) {
             console.error("TTS Error:", error);
-            alert("Sorry, could not play audio at this time.");
+            alert(t('tts_error_playback'));
         } finally {
             setPlayingMessageIndex(null);
         }
@@ -167,7 +238,8 @@ const ChatPage: React.FC<ChatPageProps> = ({ navigateTo }) => {
                                 <div key={index} className={`flex items-end gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                                     {msg.role === 'model' && (
                                         <button 
-                                            onClick={() => handlePlayAudio(msg.text, index)} 
+                                            type="button"
+                                            onClick={(event) => handlePlayAudio(msg.text, index, event)} 
                                             disabled={playingMessageIndex !== null}
                                             className="p-1.5 rounded-full hover:bg-base-400/50 disabled:opacity-50 transition-colors"
                                             aria-label="Read message aloud"
@@ -175,13 +247,14 @@ const ChatPage: React.FC<ChatPageProps> = ({ navigateTo }) => {
                                             <SpeakerIcon className={`w-5 h-5 ${playingMessageIndex === index ? 'text-brand-primary animate-pulse' : 'text-contrast-300'}`} />
                                         </button>
                                     )}
-                                    <div className={`max-w-md p-3 rounded-xl whitespace-pre-wrap ${
+                                    <div
+                                        className={`max-w-md p-3 rounded-xl ${
                                         msg.role === 'user' 
                                             ? 'bg-brand-primary text-white' 
                                             : 'bg-base-300 text-contrast-200'
-                                    }`}>
-                                        {msg.text}
-                                    </div>
+                                        }`}
+                                        dangerouslySetInnerHTML={{ __html: renderMessageHtml(msg.text) }}
+                                    />
                                 </div>
                             ))}
                             {isLoading && messages.length > 0 && (

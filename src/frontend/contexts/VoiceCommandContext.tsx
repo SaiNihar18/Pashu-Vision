@@ -93,7 +93,18 @@ export const VoiceCommandProvider = ({ children }: { children: ReactNode }) => {
     
     recognition.continuous = true;
     recognition.interimResults = false;
-    recognition.lang = language === 'hi' ? 'hi-IN' : 'en-US';
+    const langTagMap: { [key: string]: string } = {
+      en: 'en-US',
+      hi: 'hi-IN',
+      bn: 'bn-IN',
+      te: 'te-IN',
+      mr: 'mr-IN',
+      ta: 'ta-IN',
+      gu: 'gu-IN',
+      kn: 'kn-IN',
+      pa: 'pa-IN'
+    };
+    recognition.lang = langTagMap[language] || 'en-US';
 
     recognition.onstart = () => {
         setIsListening(true);
@@ -120,7 +131,7 @@ export const VoiceCommandProvider = ({ children }: { children: ReactNode }) => {
         console.error("Speech recognition error:", event.error);
         setIsListening(false);
         if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-            alert('Microphone access denied. Please enable microphone permissions in your browser settings to use voice commands.');
+          alert(translations.voice_permission_denied[language as LanguageCode] || translations.voice_permission_denied.en);
             setIsVoiceCommandsEnabled(false);
         } else if (event.error === 'network') {
             console.warn('Network error in speech recognition');
@@ -155,7 +166,7 @@ export const VoiceCommandProvider = ({ children }: { children: ReactNode }) => {
       } catch (e) {
         console.error("Error starting speech recognition:", e);
         if (e instanceof DOMException && e.name === 'NotAllowedError') {
-          alert('Microphone access is required for voice commands. Please allow microphone access in your browser settings.');
+          alert(translations.voice_permission_required[language as LanguageCode] || translations.voice_permission_required.en);
         }
       }
     }
@@ -184,7 +195,7 @@ export const VoiceCommandProvider = ({ children }: { children: ReactNode }) => {
         setIsVoiceCommandsEnabled(true);
       } catch (error) {
         console.error('Microphone permission denied:', error);
-        alert('Microphone access is required for voice commands. Please allow microphone access and try again.');
+        alert(translations.voice_permission_required[language as LanguageCode] || translations.voice_permission_required.en);
       }
     } else {
       setIsVoiceCommandsEnabled(false);

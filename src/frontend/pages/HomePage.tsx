@@ -132,30 +132,30 @@ const HomePage: React.FC<HomePageProps> = ({ navigateTo }) => {
         </div>
       </div>
       
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 -mt-16 relative z-20">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 -mt-20 relative z-20" style={{ marginTop: '-5rem' }}>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-12 max-w-4xl mx-auto mb-10">
           <FeatureCard icon={<CameraIcon className="w-16 h-16"/>} titleKey="feature_image_capture_title" descKey="feature_image_capture_desc" onClick={() => navigateTo('quick')} />
           <FeatureCard icon={<DatabaseIcon className="w-16 h-16"/>} titleKey="feature_database_title" descKey="feature_database_desc" onClick={() => navigateTo('database')} />
         </div>
       </div>
 
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 mt-16">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 mt-32">
         {/* Main Actions */}
-        <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-10">
             <ActionButton onClick={() => navigateTo('multiAngle')} titleKey="action_multi_angle" descKey="action_multi_angle_desc" icon={<span className="text-xl">📸</span>} />
             <ActionButton onClick={() => navigateTo('health')} titleKey="action_health_assessment" descKey="action_health_assessment_desc" icon={<span className="text-xl">🩺</span>} />
             <ActionButton onClick={() => navigateTo('chat')} titleKey="action_ask_ai" descKey="action_ask_ai_desc" icon={<MessageCircleIcon className="w-6 h-6" />} />
         </div>
         
         {/* Secondary Actions */}
-        <div className="max-w-3xl mx-auto flex flex-wrap justify-center gap-4 mt-10">
+        <div className="max-w-3xl mx-auto flex flex-wrap justify-center gap-8 mt-14">
             <button onClick={() => navigateTo('history')} className="flex items-center space-x-2 px-5 py-2 bg-base-100/80 backdrop-blur-lg border border-base-400/20 rounded-full shadow-sm hover:bg-base-300/80 hover:shadow-md transition-all duration-300 text-sm font-semibold"><ClockIcon className="w-5 h-5 text-brand-secondary"/><span>{t('action_view_history')}</span></button>
             <button onClick={() => navigateTo('voice')} className="flex items-center space-x-2 px-5 py-2 bg-base-100/80 backdrop-blur-lg border border-base-400/20 rounded-full shadow-sm hover:bg-base-300/80 hover:shadow-md transition-all duration-300 text-sm font-semibold"><MicrophoneIcon className="w-5 h-5 text-brand-secondary"/><span>{t('action_voice_commands')}</span></button>
             <button onClick={() => navigateTo('analytics')} className="flex items-center space-x-2 px-5 py-2 bg-base-100/80 backdrop-blur-lg border border-base-400/20 rounded-full shadow-sm hover:bg-base-300/80 hover:shadow-md transition-all duration-300 text-sm font-semibold"><ChartBarIcon className="w-5 h-5 text-brand-secondary"/><span>{t('action_view_analytics')}</span></button>
         </div>
 
         {/* How It Works */}
-        <div className="max-w-3xl mx-auto bg-base-100/80 backdrop-blur-lg border border-base-400/20 p-8 rounded-2xl shadow-xl mt-16 mb-16">
+        <div className="max-w-3xl mx-auto bg-base-100/80 backdrop-blur-lg border border-base-400/20 p-8 rounded-2xl shadow-xl mt-24 mb-16">
             <h2 className="text-2xl font-bold text-contrast-100 mb-6 text-center">{t('how_it_works_title')}</h2>
             <div className="space-y-6">
                 <HowItWorksStep num={1} textKey="how_it_works_step_1" />

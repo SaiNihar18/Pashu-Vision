@@ -23,6 +23,12 @@ export default defineConfig(({ mode }) => {
         ...(env.VITE_ALLOWED_HOST
           ? { allowedHosts: [env.VITE_ALLOWED_HOST] }
           : {}),
+        proxy: {
+          '/api': {
+            target: env.VITE_GEMINI_API_BASE || 'http://localhost:3000',
+            changeOrigin: true,
+          },
+        },
       },
       build: {
         rollupOptions: {
