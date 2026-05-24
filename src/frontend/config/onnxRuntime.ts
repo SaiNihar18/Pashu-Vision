@@ -8,7 +8,7 @@ import type { ProgressReporter } from '../services/modelLoadProgress';
 const ONNX_VERSION = '1.22.0';
 const WASM_CDN_BASE = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ONNX_VERSION}/dist/`;
 
-ort.env.wasm.wasmPaths = import.meta.env.DEV ? WASM_CDN_BASE : '/onnx-wasm/';
+ort.env.wasm.wasmPaths = WASM_CDN_BASE;
 ort.env.wasm.numThreads = 1;
 ort.env.logLevel = 'warning';
 
