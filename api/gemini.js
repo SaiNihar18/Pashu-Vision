@@ -195,11 +195,14 @@ export default async function handler(req, res) {
         },
       });
 
-      const audioData = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      const candidatePart = response.candidates?.[0]?.content?.parts?.[0];
+      const audioData = candidatePart?.inlineData?.data;
+      const mimeType = candidatePart?.inlineData?.mimeType || null;
       if (!audioData) {
         return sendJson(res, 500, { error: 'No audio data returned from Gemini.' });
       }
-      return sendJson(res, 200, { audioData });
+      // return audioData and optional mimeType to help client playback
+      return sendJson(res, 200, { audioData, mimeType });
     }
 
     if (action === 'chat') {

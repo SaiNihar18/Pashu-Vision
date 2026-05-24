@@ -123,6 +123,10 @@ export const SpeakerIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
     <IconWrapper {...props}><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></IconWrapper>
 );
 
+export const PauseIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <IconWrapper {...props}><rect x="6" y="4" width="4" height="16" rx="1"></rect><rect x="14" y="4" width="4" height="16" rx="1"></rect></IconWrapper>
+);
+
 export const MessageCircleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
     <IconWrapper {...props}><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></IconWrapper>
 );

@@ -1,10 +1,10 @@
 ﻿import React, { useState, useEffect, useRef } from 'react';
 import type { View } from '../App';
 import PageHeader from '../components/PageHeader';
-import { ArrowRightIcon, SpeakerIcon, MicrophoneIcon } from '../components/icons';
+import { ArrowRightIcon, SpeakerIcon, PauseIcon, MicrophoneIcon } from '../components/icons';
 import { useTranslation } from '../hooks/useTranslation';
 import { sendChatMessage, textToSpeech } from '../services/geminiService';
-import { playPcmAudio, stopAudioPlayback } from '../services/audioService';
+import { playPcmAudio, PlaybackHandle } from '../services/audioService';
 import { useLanguage } from '../contexts/LanguageContext';
 
 interface ChatPageProps {
@@ -45,13 +45,16 @@ const ChatPage: React.FC<ChatPageProps> = ({ navigateTo }) => {
     const [userInput, setUserInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [playingMessageIndex, setPlayingMessageIndex] = useState<number | null>(null);
+    const [pausedMessageIndex, setPausedMessageIndex] = useState<number | null>(null);
     const [selectedVoice, setSelectedVoice] = useState<string>(() => {
         return localStorage.getItem(VOICE_STORAGE_KEY) || 'vindemiatrix'; // Default to vindemiatrix
     });
     const [isListening, setIsListening] = useState(false);
-    const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
     const recognitionRef = useRef<any>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const audioHandleRef = useRef<PlaybackHandle | null>(null);
+    const playbackRequestRef = useRef(0);
+    const originalInputRef = useRef<string>('');
 
     useEffect(() => {
         setMessages([
@@ -90,72 +93,96 @@ const ChatPage: React.FC<ChatPageProps> = ({ navigateTo }) => {
         }
     };
 
-    const playSpeechSynthesis = (text: string): Promise<void> => {
-        return new Promise((resolve, reject) => {
-            if (!('speechSynthesis' in window)) {
-                reject(new Error('Speech synthesis not supported.'));
+    const stopCurrentPlayback = () => {
+        audioHandleRef.current?.stop();
+        audioHandleRef.current = null;
+        setPlayingMessageIndex(null);
+        setPausedMessageIndex(null);
+    };
+
+    const handlePlayAudio = async (text: string, index: number) => {
+        const currentHandle = audioHandleRef.current;
+
+        if (playingMessageIndex === index && currentHandle) {
+            if (currentHandle.isPlaying()) {
+                currentHandle.pause();
+                setPausedMessageIndex(index);
+                setPlayingMessageIndex(index);
                 return;
             }
 
-            const utterance = new SpeechSynthesisUtterance(text);
-            utteranceRef.current = utterance;
-
-            const voices = speechSynthesis.getVoices();
-            const selected = voices.find((voice) =>
-                voice.name.toLowerCase().includes(selectedVoice.toLowerCase()) ||
-                voice.lang.includes('en') ||
-                voice.lang.includes('hi')
-            ) || voices[0];
-
-            if (selected) {
-                utterance.voice = selected;
+            if (currentHandle.isPaused()) {
+                try {
+                    await currentHandle.play();
+                    setPausedMessageIndex(null);
+                    setPlayingMessageIndex(index);
+                    return;
+                } catch (resumeError) {
+                    console.error('Resume playback failed:', resumeError);
+                    stopCurrentPlayback();
+                }
             }
-
-            utterance.onend = () => {
-                utteranceRef.current = null;
-                resolve();
-            };
-            utterance.onerror = (event) => {
-                utteranceRef.current = null;
-                reject(new Error(`Speech synthesis failed: ${event.error}`));
-            };
-
-            speechSynthesis.speak(utterance);
-        });
-    };
-
-    const stopTtsPlayback = () => {
-        stopAudioPlayback();
-        if ('speechSynthesis' in window) {
-            speechSynthesis.cancel();
         }
-        utteranceRef.current = null;
-        setPlayingMessageIndex(null);
-    };
 
-    const handlePlayAudio = async (text: string, index: number, event?: React.MouseEvent) => {
-        event?.preventDefault();
-        event?.stopPropagation();
-
-        if (playingMessageIndex === index) {
-            stopTtsPlayback();
-            return;
+        if (currentHandle) {
+            currentHandle.stop();
+            audioHandleRef.current = null;
         }
-        if (playingMessageIndex !== null) return;
 
+        const requestId = ++playbackRequestRef.current;
         setPlayingMessageIndex(index);
+        setPausedMessageIndex(null);
+
         try {
             const audioData = await textToSpeech(text, selectedVoice);
-            if (audioData) {
-                await playPcmAudio(audioData);
-            } else {
-                await playSpeechSynthesis(text);
+            if (requestId !== playbackRequestRef.current) {
+                return;
             }
+
+            if (!audioData) {
+                if ('speechSynthesis' in window) {
+                    await new Promise<void>((resolve, reject) => {
+                        try {
+                            const utterance = new SpeechSynthesisUtterance(text);
+                            utterance.onend = () => resolve();
+                            utterance.onerror = (e) => reject(e.error || e);
+                            speechSynthesis.speak(utterance);
+                        } catch (e) { reject(e); }
+                    });
+                    return;
+                }
+                throw new Error('No audio returned from TTS and speechSynthesis not available');
+            }
+
+            const handle = playPcmAudio(audioData);
+            audioHandleRef.current = handle;
+            await handle.play();
+            await handle.finished;
         } catch (error) {
-            console.error("TTS Error:", error);
+            console.error('TTS Error (playback or TTS):', error);
+            try {
+                if ('speechSynthesis' in window) {
+                    await new Promise<void>((resolve, reject) => {
+                        try {
+                            const utterance = new SpeechSynthesisUtterance(text);
+                            utterance.onend = () => resolve();
+                            utterance.onerror = (e) => reject(e.error || e);
+                            speechSynthesis.speak(utterance);
+                        } catch (e) { reject(e); }
+                    });
+                    return;
+                }
+            } catch (fallbackErr) {
+                console.error('SpeechSynthesis fallback failed:', fallbackErr);
+            }
+
             alert(t('tts_error_playback'));
         } finally {
-            setPlayingMessageIndex(null);
+            if (requestId === playbackRequestRef.current) {
+                audioHandleRef.current = null;
+                setPlayingMessageIndex(null);
+                setPausedMessageIndex(null);
+            }
         }
     };
     
@@ -185,7 +212,8 @@ const ChatPage: React.FC<ChatPageProps> = ({ navigateTo }) => {
 
         recognition.onstart = () => {
             setIsListening(true);
-            setUserInput('');
+            // preserve any typed input; store original and append transcript later
+            originalInputRef.current = userInput;
         };
         recognition.onend = () => {
             setIsListening(false);
@@ -195,13 +223,15 @@ const ChatPage: React.FC<ChatPageProps> = ({ navigateTo }) => {
             console.error("Speech recognition error:", event.error);
             // onend will fire automatically after an error, handling state cleanup.
         };
-        recognition.onresult = (event: any) => {
-            const transcript = Array.from(event.results)
-              .map(result => result[0])
-              .map(result => result.transcript)
-              .join('');
-            setUserInput(transcript);
-        };
+                recognition.onresult = (event: any) => {
+                        const transcript = Array.from(event.results)
+                            .map((r: any) => r[0])
+                            .map((res: any) => res.transcript)
+                            .join('');
+                        // append transcript to the original typed input so it isn't lost
+                        const base = originalInputRef.current || '';
+                        setUserInput(base ? `${base} ${transcript}` : transcript);
+                };
 
         recognition.start();
     };
@@ -238,13 +268,16 @@ const ChatPage: React.FC<ChatPageProps> = ({ navigateTo }) => {
                                 <div key={index} className={`flex items-end gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                                     {msg.role === 'model' && (
                                         <button 
-                                            type="button"
-                                            onClick={(event) => handlePlayAudio(msg.text, index, event)} 
-                                            disabled={playingMessageIndex !== null}
-                                            className="p-1.5 rounded-full hover:bg-base-400/50 disabled:opacity-50 transition-colors"
-                                            aria-label="Read message aloud"
-                                        >
-                                            <SpeakerIcon className={`w-5 h-5 ${playingMessageIndex === index ? 'text-brand-primary animate-pulse' : 'text-contrast-300'}`} />
+                                                onClick={() => handlePlayAudio(msg.text, index)} 
+                                                disabled={false}
+                                                className="p-1.5 rounded-full hover:bg-base-400/50 disabled:opacity-50 transition-colors"
+                                                aria-label="Read message aloud"
+                                            >
+                                                {playingMessageIndex === index && !pausedMessageIndex ? (
+                                                    <PauseIcon className="w-5 h-5 text-brand-primary" />
+                                                ) : (
+                                                    <SpeakerIcon className={`w-5 h-5 ${playingMessageIndex === index ? 'text-brand-primary animate-pulse' : 'text-contrast-300'}`} />
+                                                )}
                                         </button>
                                     )}
                                     <div

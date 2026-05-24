@@ -26,7 +26,12 @@ const postGemini = async <T>(payload: Record<string, unknown>): Promise<T> => {
     }
     try {
       const json = JSON.parse(text) as GeminiResponse;
-      throw new Error(json.error || json.message || `Gemini request failed (${response.status})`);
+      // If the key was reported as leaked, give a clearer actionable message
+      const baseMessage = json.error || json.message || `Gemini request failed (${response.status})`;
+      if (response.status === 403 && /leak|leaked|reported/i.test(baseMessage)) {
+        throw new Error(`${baseMessage} — The server-side GEMINI_API_KEY may have been revoked. Rotate the key in your deployment (e.g. Vercel) and restart the serverless function.`);
+      }
+      throw new Error(baseMessage);
     } catch (error) {
       if (error instanceof Error) {
         throw error;
@@ -108,7 +113,31 @@ export const textToSpeech = async (text: string, voiceName: string = 'vindemiatr
   } catch (error) {
     console.warn('Gemini TTS failed, falling back to Web Speech API:', error);
   }
-  return '';
+
+  if ('speechSynthesis' in window) {
+    return new Promise((resolve, reject) => {
+      const utterance = new SpeechSynthesisUtterance(text);
+      const voices = speechSynthesis.getVoices();
+      const selectedVoice = voices.find((voice) =>
+        voice.name.toLowerCase().includes(voiceName.toLowerCase()) ||
+        voice.lang.includes('en') ||
+        voice.lang.includes('hi')
+      ) || voices[0];
+
+      if (selectedVoice) {
+        utterance.voice = selectedVoice;
+      }
+
+      utterance.onend = () => resolve('');
+      utterance.onerror = (event) => {
+        reject(new Error(`Speech synthesis failed: ${event.error}`));
+      };
+
+      speechSynthesis.speak(utterance);
+    });
+  }
+
+  throw new Error('Text-to-speech not supported in this browser');
 };
 
 export const translateText = async (text: string, targetLanguage: string): Promise<string> => {

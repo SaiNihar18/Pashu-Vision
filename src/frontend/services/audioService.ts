@@ -1,112 +1,137 @@
 /**
- * Audio service for handling PCM audio playback from text-to-speech responses
+ * Audio helpers for handling text-to-speech playback from the Gemini API.
  */
 
-/**
- * Plays PCM audio data from the TTS API
- * Since we're using Web Speech API fallback, this function will handle both cases
- * @param audioData - Base64 encoded PCM audio data (or empty string for Web Speech API)
- */
-let activeAudio: HTMLAudioElement | null = null;
-let activeSource: AudioBufferSourceNode | null = null;
-let activeContext: AudioContext | null = null;
-
-export const stopAudioPlayback = (): void => {
-  if (activeSource) {
-    try {
-      activeSource.stop();
-    } catch {
-      // ignore stop errors
-    }
-    activeSource.disconnect();
-    activeSource = null;
-  }
-
-  if (activeContext) {
-    activeContext.close().catch(() => {});
-    activeContext = null;
-  }
-
-  if (activeAudio) {
-    activeAudio.pause();
-    activeAudio.currentTime = 0;
-    activeAudio = null;
-  }
-};
-
-const playWithAudioElement = (audioData: string, mimeType: string): Promise<void> => {
+const playWithAudioElement = (audioData: string, mimeType: string): Promise<HTMLAudioElement> => {
   return new Promise((resolve, reject) => {
-    stopAudioPlayback();
-    const audio = new Audio(`data:${mimeType};base64,${audioData}`);
-    activeAudio = audio;
-    audio.onended = () => {
-      activeAudio = null;
-      resolve();
-    };
-    audio.onerror = () => {
-      activeAudio = null;
-      reject(new Error('Failed to play audio'));
-    };
-    audio.play().catch(() => {
-      activeAudio = null;
-      reject(new Error('Failed to play audio'));
-    });
+    try {
+      const dataUrl = `data:${mimeType};base64,${audioData}`;
+      const audio = new Audio(dataUrl);
+      audio.preload = 'auto';
+      resolve(audio);
+      audio.onerror = (ev) => {
+        const detail = (ev && (ev as any).message) || 'onerror';
+        reject(new Error(`Audio element playback ${mimeType} failed: ${detail}`));
+      };
+    } catch (e) {
+      reject(e instanceof Error ? e : new Error(String(e)));
+    }
   });
 };
 
-export const playPcmAudio = async (audioData: string): Promise<void> => {
-  try {
-    // If audioData is empty, it means the Web Speech API was used directly
-    // and the speech has already been played
-    if (!audioData || audioData.trim() === '') {
-      return Promise.resolve();
-    }
+export type PlaybackHandle = {
+  play: () => Promise<void>;
+  pause: () => void;
+  stop: () => void;
+  isPaused: () => boolean;
+  isPlaying: () => boolean;
+  finished: Promise<void>;
+};
 
-    // Convert base64 to ArrayBuffer
-    const binaryString = atob(audioData);
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
+export const playPcmAudio = (audioData: string): PlaybackHandle => {
+  // If audioData empty, resolve immediately
+  if (!audioData || audioData.trim() === '') {
+    return {
+      play: async () => {},
+      pause: () => {},
+      stop: () => {},
+      isPaused: () => false,
+      isPlaying: () => false,
+      finished: Promise.resolve(),
+    };
+  }
 
-    // Create audio context
-    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-    activeContext = audioContext;
-    
+  let audioElement: HTMLAudioElement | null = null;
+  let finishedResolve: (() => void) | null = null;
+  let finishedReject: ((error: unknown) => void) | null = null;
+  const finished = new Promise<void>((resolve, reject) => {
+    finishedResolve = resolve;
+    finishedReject = reject;
+  });
+
+  const detectMimeFromBase64 = (b64: string): string | null => {
     try {
-      // Try decoding as raw audio first
-      const audioBuffer = await audioContext.decodeAudioData(bytes.buffer);
+      const binaryString = atob(audioData);
+      const header = binaryString.slice(0, 4);
+      const bytes = Array.from(header).map((c) => c.charCodeAt(0));
+      // 'RIFF' -> WAV
+      if (bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46) return 'audio/wav';
+      // 'ID3' -> MP3 with ID3 tag
+      if (bytes[0] === 0x49 && bytes[1] === 0x44 && bytes[2] === 0x33) return 'audio/mpeg';
+      // OggS -> OGG
+      if (bytes[0] === 0x4F && bytes[1] === 0x67 && bytes[2] === 0x67 && bytes[3] === 0x53) return 'audio/ogg';
+      // WebM/Matroska signature 0x1A 0x45 0xDF 0xA3
+      if (bytes[0] === 0x1A && bytes[1] === 0x45 && bytes[2] === 0xDF && bytes[3] === 0xA3) return 'audio/webm';
+      // MP3 frame sync 0xFF 0xFB or 0xFF 0xF3 or 0xFF 0xF2
+      if (bytes[0] === 0xFF && (bytes[1] === 0xFB || bytes[1] === 0xF3 || bytes[1] === 0xF2)) return 'audio/mpeg';
+    } catch (err) {
+      // ignore
+    }
+    return null;
+  };
 
-      const source = audioContext.createBufferSource();
-      activeSource = source;
-      source.buffer = audioBuffer;
-      source.connect(audioContext.destination);
-      source.start(0);
+  const ensureAudioElement = async (): Promise<HTMLAudioElement> => {
+    if (audioElement) {
+      return audioElement;
+    }
 
-      return new Promise((resolve) => {
-        source.onended = () => {
-          activeSource = null;
-          audioContext.close().catch(() => {});
-          activeContext = null;
-          resolve();
-        };
-      });
-    } catch (decodeError) {
-      // Fallback to browser audio element for encoded audio formats
+    const guessed = detectMimeFromBase64(audioData);
+    const mimeTypes = guessed
+      ? [guessed, 'audio/wav', 'audio/mpeg', 'audio/mp3', 'audio/ogg', 'audio/webm']
+      : ['audio/wav', 'audio/mpeg', 'audio/mp3', 'audio/ogg', 'audio/webm'];
+
+    let lastErr: unknown = null;
+    for (const mime of mimeTypes) {
       try {
-        await playWithAudioElement(audioData, 'audio/wav');
-        return;
-      } catch {
-        try {
-          await playWithAudioElement(audioData, 'audio/mpeg');
-          return;
-        } catch {
-          await playWithAudioElement(audioData, 'audio/mp3');
-        }
+        audioElement = await playWithAudioElement(audioData, mime);
+        audioElement.onended = () => {
+          finishedResolve?.();
+        };
+        audioElement.onerror = (ev) => {
+          const detail = (ev && (ev as any).message) || 'onerror';
+          finishedReject?.(new Error(`Audio element playback failed: ${detail}`));
+        };
+        return audioElement;
+      } catch (e) {
+        lastErr = e;
+        console.warn(`Audio element playback failed for mime ${mime}:`, e);
       }
     }
-  } catch (error) {
-    console.error('Error playing PCM audio:', error);
-    throw new Error('Failed to play audio');
-  }
+
+    throw lastErr || new Error('Audio element playback failed for all tried mime types');
+  };
+
+  const play = async () => {
+    const audio = await ensureAudioElement();
+    try {
+      await audio.play();
+    } catch (err) {
+      finishedReject?.(err);
+      throw err;
+    }
+  };
+
+  const pause = () => {
+    try {
+      audioElement?.pause();
+    } catch (_) {}
+  };
+
+  const stop = () => {
+    try {
+      if (audioElement) {
+        audioElement.pause();
+        audioElement.currentTime = 0;
+      }
+    } catch (_) {}
+  };
+
+  return {
+    play,
+    pause,
+    stop,
+    isPaused: () => !!audioElement?.paused,
+    isPlaying: () => !!audioElement && !audioElement.paused && !audioElement.ended,
+    finished,
+  };
 };
