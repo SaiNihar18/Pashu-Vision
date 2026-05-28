@@ -5,12 +5,6 @@ import { ort, ensureOnnxRuntimeReady } from '../config/onnxRuntime';
 import { ModelPrediction } from './onnxModelService';
 import type { ProgressReporter } from './modelLoadProgress';
 
-// External model URL for production (Vercel doesn't support Git LFS)
-// The model is hosted on GitHub Releases for reliable delivery
-const GITHUB_RELEASES_MODEL_URL =
-  import.meta.env.VITE_ONNX_MODEL_URL ||
-  'https://github.com/SaiNihar18/Pashu-Vision/releases/download/v1.0-model/breed_classifier.onnx';
-
 // Minimum valid ONNX model size (1 MB) — anything smaller is likely an LFS pointer or corrupt
 const MIN_MODEL_SIZE_BYTES = 1_000_000;
 
@@ -23,15 +17,6 @@ const BREED_CLASSES = [
   "Nili_Ravi", "Nimari", "Ongole", "Pulikulam", "Rathi", "Red_Dane", "Red_Sindhi",
   "Sahiwal", "Surti", "Tharparkar", "Toda", "Umblachery", "Vechur"
 ];
-
-/**
- * Detect whether we are running on Vercel (or any non-localhost production host).
- * On Vercel the local /models/ path serves an LFS pointer, not the real binary.
- */
-function isProductionDeployment(): boolean {
-  const host = globalThis?.location?.hostname ?? '';
-  return host !== '' && host !== 'localhost' && host !== '127.0.0.1';
-}
 
 /**
  * Check if downloaded bytes look like a Git LFS pointer instead of binary data.
@@ -52,19 +37,6 @@ class ONNXResNet50Service {
   private modelInfo: any = null;
 
   /**
-   * Resolve the actual URL to fetch the ONNX model from.
-   * In production deployments the local path is replaced with the GitHub Releases URL.
-   */
-  private resolveModelUrl(localPath: string): string {
-    if (isProductionDeployment()) {
-      console.log('🌐 Production deployment detected — loading model from GitHub Releases');
-      return GITHUB_RELEASES_MODEL_URL;
-    }
-    console.log('💻 Local development detected — loading model from local path');
-    return localPath;
-  }
-
-  /**
    * Load your converted ONNX ResNet-50 model
    */
   async loadModel(
@@ -83,10 +55,8 @@ class ONNXResNet50Service {
     try {
       await ensureOnnxRuntimeReady(onProgress);
 
-      const resolvedUrl = this.resolveModelUrl(modelPath);
-
       console.log('🚀 Loading your ONNX ResNet-50 breed classifier...');
-      console.log('📁 Model URL:', resolvedUrl);
+      console.log('📁 Model path:', modelPath);
       
       // Load model info first
       try {
@@ -109,7 +79,7 @@ class ONNXResNet50Service {
       });
 
       console.log('🔄 Fetching model file...');
-      const modelData = await this.fetchModelWithProgress(resolvedUrl, onProgress);
+      const modelData = await this.fetchModelWithProgress(modelPath, onProgress);
 
       // ── Validate downloaded model data ──────────────────────────
       if (isLfsPointer(modelData)) {
@@ -179,9 +149,7 @@ class ONNXResNet50Service {
       });
       throw new Error(
         'Could not load your trained ONNX ResNet-50 model. ' +
-        (isProductionDeployment()
-          ? 'The external model URL may be unreachable. Check the GitHub Releases asset.'
-          : 'Check if breed_classifier.onnx is in public/models/breed_classifier/')
+        'Check if breed_classifier.onnx is in public/models/breed_classifier/'
       );
     } finally {
       this.isLoading = false;
