@@ -265,7 +265,7 @@ class ONNXResNet50Service {
             message: 'Analyzing image',
             subMessage: 'Running ResNet-50 on your photo',
           });
-          console.log('≡ƒºá Running inference with your trained ONNX ResNet-50...');
+          console.log('🧠 Running inference with your trained ONNX ResNet-50...');
           
           // Preprocess exactly as your training
           const inputTensor = await this.preprocessImage(img);
@@ -276,7 +276,7 @@ class ONNXResNet50Service {
           feeds[inputName] = inputTensor;
           
           // Run inference with your ONNX ResNet-50 model
-          console.log('≡ƒöÑ Running inference...');
+          console.log('⚡ Running inference...');
           const results = await this.session!.run(feeds);
           
           // Get output tensor
@@ -296,8 +296,8 @@ class ONNXResNet50Service {
 
           const topPrediction = predictions[0];
 
-          console.log(`≡ƒÄ» ONNX ResNet-50 predicted: ${topPrediction.breed} (${topPrediction.confidence}%)`);
-          console.log(`≡ƒôê Top 3: ${predictions.slice(0, 3).map(p => `${p.breed}(${p.confidence}%)`).join(', ')}`);
+          console.log(`🎯 ONNX ResNet-50 predicted: ${topPrediction.breed} (${topPrediction.confidence}%)`);
+          console.log(`📊 Top 3: ${predictions.slice(0, 3).map(p => `${p.breed}(${p.confidence}%)`).join(', ')}`);
 
           resolve({
             breedName: topPrediction.breed,
@@ -305,7 +305,7 @@ class ONNXResNet50Service {
             allPredictions: predictions.slice(0, 5) // Top 5 predictions
           });
         } catch (error) {
-          console.error('Γ¥î ONNX ResNet-50 inference error:', error);
+          console.error('❌ ONNX ResNet-50 inference error:', error);
           reject(error);
         }
       };
