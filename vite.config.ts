@@ -8,7 +8,8 @@ export default defineConfig(({ mode }) => {
         'process.env.CUSTOM_MODEL_PATH': JSON.stringify(env.CUSTOM_MODEL_PATH || '/models/breed_classifier'),
         'process.env.USE_CUSTOM_MODEL': JSON.stringify(env.USE_CUSTOM_MODEL === 'true'),
         'process.env.MODEL_CONFIDENCE_THRESHOLD': JSON.stringify(parseInt(env.MODEL_CONFIDENCE_THRESHOLD || '60')),
-        'process.env.FALLBACK_TO_GEMINI': JSON.stringify(env.FALLBACK_TO_GEMINI === 'true')
+        'process.env.FALLBACK_TO_GEMINI': JSON.stringify(env.FALLBACK_TO_GEMINI === 'true'),
+        'process.env.VITE_ONNX_MODEL_URL': JSON.stringify(env.VITE_ONNX_MODEL_URL || '')
       },
       resolve: {
         alias: {

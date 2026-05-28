@@ -1,9 +1,18 @@
-﻿// ONNX ResNet-50 Model Service
+// ONNX ResNet-50 Model Service
 // Uses your actual converted ONNX model with modern onnxruntime-web
 
 import { ort, ensureOnnxRuntimeReady } from '../config/onnxRuntime';
 import { ModelPrediction } from './onnxModelService';
 import type { ProgressReporter } from './modelLoadProgress';
+
+// External model URL for production (Vercel doesn't support Git LFS)
+// The model is hosted on GitHub Releases for reliable delivery
+const GITHUB_RELEASES_MODEL_URL =
+  import.meta.env.VITE_ONNX_MODEL_URL ||
+  'https://github.com/SaiNihar18/Pashu-Vision/releases/download/v1.0-model/breed_classifier.onnx';
+
+// Minimum valid ONNX model size (1 MB) — anything smaller is likely an LFS pointer or corrupt
+const MIN_MODEL_SIZE_BYTES = 1_000_000;
 
 // Your actual 41 breed classes
 const BREED_CLASSES = [
@@ -15,10 +24,45 @@ const BREED_CLASSES = [
   "Sahiwal", "Surti", "Tharparkar", "Toda", "Umblachery", "Vechur"
 ];
 
+/**
+ * Detect whether we are running on Vercel (or any non-localhost production host).
+ * On Vercel the local /models/ path serves an LFS pointer, not the real binary.
+ */
+function isProductionDeployment(): boolean {
+  const host = globalThis?.location?.hostname ?? '';
+  return host !== '' && host !== 'localhost' && host !== '127.0.0.1';
+}
+
+/**
+ * Check if downloaded bytes look like a Git LFS pointer instead of binary data.
+ */
+function isLfsPointer(data: Uint8Array): boolean {
+  if (data.byteLength > 1024) return false; // LFS pointers are tiny (~130 bytes)
+  try {
+    const text = new TextDecoder().decode(data.slice(0, 128));
+    return text.startsWith('version https://git-lfs.github.com/spec/');
+  } catch {
+    return false;
+  }
+}
+
 class ONNXResNet50Service {
   private session: ort.InferenceSession | null = null;
   private isLoading = false;
   private modelInfo: any = null;
+
+  /**
+   * Resolve the actual URL to fetch the ONNX model from.
+   * In production deployments the local path is replaced with the GitHub Releases URL.
+   */
+  private resolveModelUrl(localPath: string): string {
+    if (isProductionDeployment()) {
+      console.log('🌐 Production deployment detected — loading model from GitHub Releases');
+      return GITHUB_RELEASES_MODEL_URL;
+    }
+    console.log('💻 Local development detected — loading model from local path');
+    return localPath;
+  }
 
   /**
    * Load your converted ONNX ResNet-50 model
@@ -39,20 +83,22 @@ class ONNXResNet50Service {
     try {
       await ensureOnnxRuntimeReady(onProgress);
 
-      console.log('≡ƒÜÇ Loading your ONNX ResNet-50 breed classifier...');
-      console.log('≡ƒôé Model path:', modelPath);
+      const resolvedUrl = this.resolveModelUrl(modelPath);
+
+      console.log('🚀 Loading your ONNX ResNet-50 breed classifier...');
+      console.log('📁 Model URL:', resolvedUrl);
       
       // Load model info first
       try {
         const infoResponse = await fetch('/models/breed_classifier/model_info.json');
         if (infoResponse.ok) {
           this.modelInfo = await infoResponse.json();
-          console.log('≡ƒôï Model info loaded:', this.modelInfo.model_type);
+          console.log('📋 Model info loaded:', this.modelInfo.model_type);
         } else {
-          console.warn('ΓÜá∩╕Å Could not load model info, using defaults');
+          console.warn('⚠️ Could not load model info, using defaults');
         }
       } catch (e) {
-        console.warn('ΓÜá∩╕Å Could not load model info, using defaults');
+        console.warn('⚠️ Could not load model info, using defaults');
       }
       
       onProgress?.({
@@ -62,21 +108,27 @@ class ONNXResNet50Service {
         subMessage: 'Verifying breed_classifier.onnx is available',
       });
 
-      try {
-        const headResponse = await fetch(modelPath, { method: 'HEAD' });
-        if (!headResponse.ok) {
-          throw new Error(`Model file not found at ${modelPath}. Status: ${headResponse.status}`);
-        }
-        const contentLength = headResponse.headers.get('content-length');
-        console.log('Γ£à Model file found, size:', contentLength ? `${(parseInt(contentLength) / (1024*1024)).toFixed(2)}MB` : 'unknown');
-      } catch (fetchError) {
-        console.error('Γ¥î Model file check failed:', fetchError);
-        throw new Error(`Could not access ONNX model file at ${modelPath}. Please ensure breed_classifier.onnx exists in public/models/breed_classifier/`);
+      console.log('🔄 Fetching model file...');
+      const modelData = await this.fetchModelWithProgress(resolvedUrl, onProgress);
+
+      // ── Validate downloaded model data ──────────────────────────
+      if (isLfsPointer(modelData)) {
+        throw new Error(
+          'The downloaded model is a Git LFS pointer, not the actual ONNX binary. ' +
+          'This happens when the deployment host (e.g. Vercel) does not support Git LFS. ' +
+          'The model should be loaded from an external URL instead.'
+        );
       }
 
-      console.log('≡ƒöä Fetching model file...');
-      const modelData = await this.fetchModelWithProgress(modelPath, onProgress);
-      console.log('Γ£à Model file fetched successfully, size:', `${(modelData.byteLength / (1024*1024)).toFixed(2)}MB`);
+      if (modelData.byteLength < MIN_MODEL_SIZE_BYTES) {
+        throw new Error(
+          `Downloaded model is too small (${(modelData.byteLength / 1024).toFixed(1)} KB). ` +
+          `Expected at least ${(MIN_MODEL_SIZE_BYTES / (1024 * 1024)).toFixed(0)} MB. ` +
+          'The file may be corrupt or an LFS pointer.'
+        );
+      }
+
+      console.log('✅ Model file fetched successfully, size:', `${(modelData.byteLength / (1024*1024)).toFixed(2)}MB`);
 
       onProgress?.({
         stage: 'init',
@@ -96,14 +148,14 @@ class ONNXResNet50Service {
       
       for (const provider of providers) {
         try {
-          console.log(`≡ƒöä Trying ${provider.name} execution provider...`);
+          console.log(`🔄 Trying ${provider.name} execution provider...`);
           this.session = await ort.InferenceSession.create(modelData, provider.config);
-          console.log(`Γ£à Successfully loaded with ${provider.name} provider!`);
-          console.log(`≡ƒôè Input names: ${this.session.inputNames.join(', ')}`);
-          console.log(`≡ƒôè Output names: ${this.session.outputNames.join(', ')}`);
+          console.log(`✅ Successfully loaded with ${provider.name} provider!`);
+          console.log(`📊 Input names: ${this.session.inputNames.join(', ')}`);
+          console.log(`📊 Output names: ${this.session.outputNames.join(', ')}`);
           break;
         } catch (providerError) {
-          console.warn(`ΓÜá∩╕Å ${provider.name} provider failed:`, providerError);
+          console.warn(`⚠️ ${provider.name} provider failed:`, providerError);
           lastError = providerError instanceof Error ? providerError : new Error(String(providerError));
           continue;
         }
@@ -112,20 +164,25 @@ class ONNXResNet50Service {
       if (!this.session) {
         throw new Error(`Failed to create ONNX session with any provider. Last error: ${lastError?.message}`);
       }
-      console.log('Γ£à Your ONNX ResNet-50 model loaded successfully!');
-      console.log('≡ƒôè Input names:', this.session.inputNames);
-      console.log('≡ƒôè Output names:', this.session.outputNames);
+      console.log('✅ Your ONNX ResNet-50 model loaded successfully!');
+      console.log('📊 Input names:', this.session.inputNames);
+      console.log('📊 Output names:', this.session.outputNames);
 
       onProgress?.({ stage: 'complete', percent: 100, message: 'Model ready' });
       
     } catch (error) {
-      console.error('Γ¥î Failed to load your ONNX ResNet-50 model:', error);
-      console.error('Γ¥î Error details:', {
+      console.error('❌ Failed to load your ONNX ResNet-50 model:', error);
+      console.error('❌ Error details:', {
         message: error instanceof Error ? error.message : 'Unknown error',
         type: typeof error,
         stack: error instanceof Error ? error.stack : 'No stack trace'
       });
-      throw new Error('Could not load your trained ONNX ResNet-50 model. Check if breed_classifier.onnx is in public/models/breed_classifier/');
+      throw new Error(
+        'Could not load your trained ONNX ResNet-50 model. ' +
+        (isProductionDeployment()
+          ? 'The external model URL may be unreachable. Check the GitHub Releases asset.'
+          : 'Check if breed_classifier.onnx is in public/models/breed_classifier/')
+      );
     } finally {
       this.isLoading = false;
     }
